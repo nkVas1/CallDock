@@ -60,7 +60,9 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
                 if (!context.Response.HasStarted) { context.Response.StatusCode = 409; await context.Response.WriteAsJsonAsync(new { error = e.Message }); }
             }
         });
-        app.MapGet("/health", () => new { app = AppInfo.Name, version = AppInfo.Version, recording = controller.Current is not null });
+        // "extension" is the version of the extension files shipped with this CallDock: Chrome keeps running an unpacked
+        // extension's old code until it is reloaded, and the popup compares the two to ask for that reload.
+        app.MapGet("/health", () => new { app = AppInfo.Name, version = AppInfo.Version, extension = ExtensionVersion, recording = controller.Current is not null });
         app.MapPost("/tabs/start", async (TabStart request) =>
         {
             var title = request.Title.Trim();
@@ -97,6 +99,18 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
             throw;
         }
         Log.Info($"Chrome bridge listening on 127.0.0.1:{Port}");
+    }
+
+    private static readonly string? ExtensionVersion = ReadExtensionVersion();
+
+    private static string? ReadExtensionVersion()
+    {
+        try
+        {
+            using var manifest = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "extension", "manifest.json")));
+            return manifest.RootElement.GetProperty("version").GetString();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or KeyNotFoundException) { return null; }
     }
 
     private BrowserRecording? Find(string id) => controller.Recordings.OfType<BrowserRecording>().FirstOrDefault(x => x.Track.Id == id);

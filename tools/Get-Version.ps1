@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Returns the CallDock version and its release notes, after checking that the version is the same everywhere.
+  Returns the CallDock version and its release notes from CHANGELOG.md, after checking both.
 .DESCRIPTION
-  The version lives in Directory.Build.props. The Chrome extension's manifest must carry the same number (Chrome shows
-  it, and the extension compares it with the app's), and CHANGELOG.md must have a section for it: that section becomes
-  the text of the GitHub release and of the "what's new" window of an update.
+  The version lives in Directory.Build.props, and CHANGELOG.md must have a section for it: that section becomes the text
+  of the GitHub release and of the "what's new" note the app shows once an update is downloaded. The Chrome extension has its own version in its
+  manifest, raised only when the extension changes: the popup asks for a reload in Chrome exactly then.
 #>
 [CmdletBinding()]
 param()
@@ -18,7 +18,7 @@ $version = $props.SelectSingleNode('//Version').InnerText
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Directory.Build.props: the version must look like 1.2.3, not '$version'." }
 
 $manifest = Get-Content -LiteralPath (Join-Path $repo 'extension/manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($manifest.version -ne $version) { throw "extension/manifest.json has version $($manifest.version), Directory.Build.props has $version." }
+if ($manifest.version -notmatch '^\d+\.\d+\.\d+$') { throw "extension/manifest.json: the version must look like 1.2.3, not '$($manifest.version)'." }
 
 $changelog = [string[]](Get-Content -LiteralPath (Join-Path $repo 'CHANGELOG.md') -Encoding UTF8)
 $start = [Array]::FindIndex($changelog, [Predicate[string]] { param($line) $line -match "^## \[$([regex]::Escape($version))\]" })

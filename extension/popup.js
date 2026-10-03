@@ -44,7 +44,7 @@ async function checkConnection() {
     else if (!response.ok) connection = { state: "offline" };
     else {
       const data = await response.json();
-      connection = { state: data.recording ? "recording" : "ok", version: data.version };
+      connection = { state: data.recording ? "recording" : "ok", version: data.version, extension: data.extension };
     }
   } catch {
     connection = { state: "offline" };
@@ -78,9 +78,10 @@ function render() {
   pill.querySelector("span").textContent = labels[connection.state];
   pill.title = connection.version ? `CallDock ${connection.version}` : "";
 
-  // Chrome keeps running an unpacked extension's old code until it is reloaded, so an update of CallDock needs one click.
+  // Chrome keeps running an unpacked extension's old code until it is reloaded: when CallDock brings changed extension
+  // files, the version it ships differs from the one Chrome has loaded.
   const loaded = chrome.runtime.getManifest().version;
-  $("outdated").hidden = !connection.version || connection.version === loaded;
+  $("outdated").hidden = !connection.extension || connection.extension === loaded;
 
   const needsToken = editingToken || connection.state === "unpaired" || connection.state === "bad-token";
   $("pairing").hidden = !needsToken;

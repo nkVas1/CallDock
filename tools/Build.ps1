@@ -2,7 +2,7 @@
 .SYNOPSIS
   Builds a CallDock release for 64-bit Windows.
 .DESCRIPTION
-  1. Checks that the version is the same everywhere (tools/Get-Version.ps1).
+  1. Checks the version and its changelog section (tools/Get-Version.ps1).
   2. Runs the tests.
   3. Publishes the app and the speech worker, both self-contained, into one folder.
   4. Adds FFmpeg (LGPL build pinned by SHA-256) and the Microsoft C++ runtime, so nothing has to be installed separately.
@@ -33,7 +33,7 @@ function Invoke-Step([string]$What, [scriptblock]$Command) {
     if ($LASTEXITCODE -ne 0) { throw "$What failed (exit code $LASTEXITCODE)." }
 }
 
-# --- The version: one number in three places -------------------------------------------------------------------------
+# --- The version and its release notes ------------------------------------------------------------------------------
 $release = & (Join-Path $PSScriptRoot 'Get-Version.ps1')
 $version = $release.Version
 $notes = $release.Notes
