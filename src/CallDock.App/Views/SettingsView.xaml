@@ -239,6 +239,10 @@
                        Visibility="{Binding CanRestart, Converter={StaticResource Visible}}" />
           </WrapPanel>
           <TextBlock Text="{Binding UpdateStatus}" Style="{StaticResource Caption}" Margin="0,8,0,0" Visibility="{Binding UpdateStatus, Converter={StaticResource VisibleIfSet}}" />
+          <StackPanel Margin="0,10,0,0" Visibility="{Binding UpdateNotes, Converter={StaticResource VisibleIfSet}}">
+            <TextBlock Text="Что нового" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            <TextBlock Text="{Binding UpdateNotes}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0" LineHeight="19" />
+          </StackPanel>
         </StackPanel>
       </Border>
 

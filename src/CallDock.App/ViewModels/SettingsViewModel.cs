@@ -53,7 +53,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         Fps = FpsOptions.FirstOrDefault(f => f.Value == s.VideoFps) ?? FpsOptions[1];
         SoftwareRendering = s.SoftwareRendering;
         ArchiveRoot = host.Archive.Root;
-        host.Updates.Changed += () => Dispatch(() => { UpdateStatus = host.Updates.Status; CanRestart = host.Updates.PendingVersion is not null; });
+        host.Updates.Changed += () => Dispatch(() =>
+        {
+            UpdateStatus = host.Updates.Status;
+            CanRestart = host.Updates.PendingVersion is not null;
+            UpdateNotes = host.Updates.PendingNotes ?? "";
+        });
         UpdateStatus = host.Updates.Status;
         loading = false;
     }
@@ -92,6 +97,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The pairing code is a key to this computer's recorder: hidden until asked for.</summary>
     public string TokenDisplay => TokenVisible ? host.Bridge.Token : new string('•', 32);
     [ObservableProperty] public partial string UpdateStatus { get; set; } = "";
+    [ObservableProperty] public partial string UpdateNotes { get; set; } = "";
     [ObservableProperty] public partial bool CanRestart { get; set; }
 
     /// <summary>Raised when the theme or the hotkeys must be re-applied by the window.</summary>
@@ -129,8 +135,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // ── speech models ──────────────────────────────────────────────────────
-    private static string StateOf(ModelItemViewModel m) =>
-        m.IsInstalled ? (m.IsSelected ? "Установлена · используется" : "Установлена") : m.IsSelected ? "Выбрана, но не скачана" : "Не скачана";
+    private static string StateOf(ModelItemViewModel m)
+    {
+        if (m.IsInstalled) return m.IsSelected ? "Установлена · используется" : "Установлена";
+        var partial = ModelManager.PartialBytes(m.Model);
+        if (partial > 0) return $"Скачано {(double)partial / m.Model.Size:P0} — нажмите «Скачать», чтобы продолжить";
+        return m.IsSelected ? "Выбрана, но не скачана" : "Не скачана";
+    }
 
     public void SelectModel(ModelItemViewModel item)
     {

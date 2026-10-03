@@ -68,7 +68,14 @@ public partial class MainWindow : FluentWindow
         foreach (var message in host.Recovered) host.Notifier.Warning("Восстановлено", message);
         if (host.StartupWarning is not null) host.Notifier.Warning("Архив", host.StartupWarning);
         if (host.BridgeError is not null) host.Notifier.Warning("Chrome", host.BridgeError);
-        if (host.Settings.CheckForUpdates) _ = host.Updates.CheckAsync();
+        if (host.Settings.CheckForUpdates) _ = CheckUpdatesAsync();
+    }
+
+    private async Task CheckUpdatesAsync()
+    {
+        await host.Updates.CheckAsync();
+        if (host.Updates.PendingVersion is { } version)
+            host.Notifier.Info($"Скачана версия {version}", "Она установится при следующем запуске CallDock. Что нового — в настройках, раздел «Обновления».");
     }
 
     private void Navigate(object sender, RoutedEventArgs e)
