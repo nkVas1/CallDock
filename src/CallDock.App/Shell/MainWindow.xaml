@@ -1,0 +1,109 @@
+<ui:FluentWindow x:Class="CallDock.App.Shell.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="CallDock" Width="1200" Height="800" MinWidth="980" MinHeight="660"
+                 WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="None" WindowCornerPreference="Round"
+                 Icon="pack://application:,,,/Assets/calldock.ico">
+  <ui:FluentWindow.Resources>
+    <!-- A rail item: icon over a short label, a pill behind the selected one (Windows 11 Media Player style). -->
+    <Style x:Key="RailItem" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource SoftFocus}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Grid>
+              <Border x:Name="Pill" Background="Transparent" CornerRadius="6" Padding="4,8,4,6">
+                <ContentPresenter HorizontalAlignment="Center" />
+              </Border>
+              <Border x:Name="Marker" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
+                      Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </ui:FluentWindow.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <ui:TitleBar x:Name="AppTitleBar" Title="CallDock" Grid.Row="0">
+      <ui:TitleBar.Icon>
+        <ui:ImageIcon Source="pack://application:,,,/Assets/logo-64.png" Width="16" Height="16" />
+      </ui:TitleBar.Icon>
+      <ui:TitleBar.TrailingContent>
+        <Button x:Name="RecordingPill" Click="ShowRecorder" Visibility="Collapsed" Margin="0,0,8,0" Padding="10,3" VerticalAlignment="Center"
+                Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Идёт запись — открыть пульт"
+                AutomationProperties.Name="Идёт запись">
+          <StackPanel Orientation="Horizontal">
+            <Ellipse Width="9" Height="9" Fill="{StaticResource RecordBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
+            <TextBlock x:Name="RecordingPillText" Text="Запись" FontWeight="SemiBold" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontFamily="Cascadia Mono, Consolas, Segoe UI" />
+          </StackPanel>
+        </Button>
+      </ui:TitleBar.TrailingContent>
+    </ui:TitleBar>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="80" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <DockPanel Margin="6,0,6,12" LastChildFill="False">
+        <RadioButton x:Name="NavSettings" DockPanel.Dock="Bottom" GroupName="Nav" Style="{StaticResource RailItem}" Checked="Navigate"
+                     AutomationProperties.Name="Настройки" Tag="settings">
+          <StackPanel>
+            <ui:SymbolIcon Symbol="Settings24" FontSize="20" HorizontalAlignment="Center" />
+            <TextBlock Text="Настройки" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton x:Name="NavRecord" DockPanel.Dock="Top" GroupName="Nav" Style="{StaticResource RailItem}" Checked="Navigate"
+                     AutomationProperties.Name="Запись" Tag="record">
+          <StackPanel>
+            <Grid HorizontalAlignment="Center">
+              <ui:SymbolIcon Symbol="Record24" FontSize="20" />
+              <Ellipse x:Name="NavRecordDot" Width="7" Height="7" Fill="{StaticResource RecordBrush}" HorizontalAlignment="Right"
+                       VerticalAlignment="Top" Margin="0,-1,-3,0" Visibility="Collapsed" />
+            </Grid>
+            <TextBlock Text="Запись" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton x:Name="NavArchive" DockPanel.Dock="Top" GroupName="Nav" Style="{StaticResource RailItem}" Checked="Navigate"
+                     AutomationProperties.Name="Архив" Tag="archive">
+          <StackPanel>
+            <ui:SymbolIcon Symbol="Archive24" FontSize="20" HorizontalAlignment="Center" />
+            <TextBlock Text="Архив" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center" />
+          </StackPanel>
+        </RadioButton>
+      </DockPanel>
+
+      <Border Grid.Column="1" Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+              BorderThickness="1,1,0,0" CornerRadius="8,0,0,0">
+        <ContentControl x:Name="Page" Focusable="False" />
+      </Border>
+
+      <ui:SnackbarPresenter x:Name="Snackbar" Grid.Column="1" VerticalAlignment="Bottom" Margin="24,0,24,20" />
+    </Grid>
+
+    <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="2" />
+  </Grid>
+</ui:FluentWindow>

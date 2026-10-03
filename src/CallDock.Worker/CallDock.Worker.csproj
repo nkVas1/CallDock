@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Speech recognition runs in this separate process: a failure in native inference cannot take a recording down. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Product>CallDock</Product>
+    <Description>Модуль распознавания речи CallDock</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CallDock.Core/CallDock.Core.csproj" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.NoAvx" Version="1.9.1" />
+  </ItemGroup>
+</Project>

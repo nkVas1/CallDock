@@ -1,0 +1,26 @@
+# Build output
+**/bin/
+**/obj/
+artifacts/
+Releases/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Downloaded tools (fetched by tools/Get-MediaTools.ps1, checksum-pinned)
+tools/vendor/
+
+# Local QA data: recordings, models, pairing tokens, browser profiles
+.qa/
+.playwright-mcp/
+node_modules/
+
+# Private working notes
+dev-notes/
+
+# Secrets and logs
+*.pfx
+*.snk
+*.log

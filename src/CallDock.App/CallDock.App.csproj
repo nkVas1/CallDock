@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\calldock.ico</ApplicationIcon>
+    <AssemblyName>CallDock</AssemblyName>
+    <RootNamespace>CallDock.App</RootNamespace>
+    <StartupObject>CallDock.App.Program</StartupObject>
+    <Product>CallDock</Product>
+    <Description>Запись звонков и трансляций с локальной расшифровкой</Description>
+    <PublishTrimmed>false</PublishTrimmed>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../CallDock.Core/CallDock.Core.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="ScreenRecorderLib" Version="7.0.1" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Resource Include="Assets\*.png" />
+    <Resource Include="Assets\*.ico" />
+    <Content Include="../../extension/**/*" Link="extension/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- A development run works like the release: the speech worker and FFmpeg (tools/Get-MediaTools.ps1) sit next to
+       CallDock.exe. The release itself is assembled by tools/Build.ps1. -->
+  <ItemGroup>
+    <ProjectReference Include="../CallDock.Worker/CallDock.Worker.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyWorkerForDevelopment" AfterTargets="Build" Condition="'$(_IsPublishing)' != 'true'">
+    <ItemGroup>
+      <WorkerFiles Include="$(MSBuildThisFileDirectory)../CallDock.Worker/bin/$(Platform)/$(Configuration)/$(TargetFramework)/**/*" />
+      <MediaTools Include="$(MSBuildThisFileDirectory)../../tools/vendor/ffmpeg/*/bin/ffmpeg.exe;$(MSBuildThisFileDirectory)../../tools/vendor/ffmpeg/*/bin/ffprobe.exe;$(MSBuildThisFileDirectory)../../tools/vendor/ffmpeg/*/bin/*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WorkerFiles)" DestinationFiles="@(WorkerFiles->'$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(MediaTools)" DestinationFolder="$(OutDir)tools" SkipUnchangedFiles="true" />
+    <Warning Condition="'@(MediaTools)' == ''" Text="FFmpeg is missing: run tools/Get-MediaTools.ps1 once, or exports, compression and playback will not work in this build." />
+  </Target>
+</Project>

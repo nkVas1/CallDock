@@ -1,0 +1,21 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/CallDock.App/CallDock.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/CallDock.Core/CallDock.Core.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/CallDock.Worker/CallDock.Worker.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CallDock.Tests/CallDock.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+</Solution>

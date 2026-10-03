@@ -1,0 +1,190 @@
+<UserControl x:Class="CallDock.App.Views.RecorderView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:CallDock.App.Controls">
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,22,32,32" MaxWidth="1060">
+      <TextBlock Text="Запись" Style="{StaticResource PageTitle}" />
+      <TextBlock Text="Каждый источник пишется отдельной дорожкой. Окно можно свернуть: запись продолжится в трее, горячие клавиши работают из любой программы."
+                 Style="{StaticResource Caption}" Margin="0,4,0,18" />
+
+      <!-- The console: time, state and the one big button. -->
+      <Border Style="{StaticResource Surface}" Padding="24,20">
+        <StackPanel>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Ellipse Width="14" Height="14" Fill="{StaticResource RecordBrush}" Margin="0,0,16,10" VerticalAlignment="Center"
+                     Visibility="{Binding IsRecording, Converter={StaticResource Visible}}">
+              <Ellipse.Triggers>
+                <EventTrigger RoutedEvent="Loaded">
+                  <BeginStoryboard>
+                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                      <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.25" Duration="0:0:0.9" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+              </Ellipse.Triggers>
+            </Ellipse>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Text="{Binding Elapsed}" FontSize="42" FontWeight="Light" FontFamily="Cascadia Mono, Consolas, Segoe UI"
+                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" AutomationProperties.Name="Длительность записи" />
+              <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+              <ui:Button Content="Метка" Command="{Binding AddBookmarkCommand}" Margin="0,0,10,0" Height="44" Padding="16,0"
+                         Visibility="{Binding IsRecording, Converter={StaticResource Visible}}" ToolTip="Отметить важный момент · Ctrl+Alt+M">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="BookmarkAdd24" /></ui:Button.Icon>
+              </ui:Button>
+              <ui:Button x:Name="RecordButton" Command="{Binding ToggleRecordingCommand}" Height="44" MinWidth="190" Padding="20,0"
+                         FontSize="15" FontWeight="SemiBold" ToolTip="Начать или завершить запись · Ctrl+Alt+R"
+                         AutomationProperties.AutomationId="ToggleRecording">
+                <ui:Button.Style>
+                  <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                    <Setter Property="Appearance" Value="Danger" />
+                    <Setter Property="Icon"><Setter.Value><ui:SymbolIcon Symbol="Record24" Filled="True" /></Setter.Value></Setter>
+                    <Setter Property="Content" Value="Начать запись" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                        <Setter Property="Appearance" Value="Secondary" />
+                        <Setter Property="Icon"><Setter.Value><ui:SymbolIcon Symbol="Stop24" Filled="True" /></Setter.Value></Setter>
+                        <Setter Property="Content" Value="Завершить" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                        <Setter Property="IsEnabled" Value="False" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </ui:Button.Style>
+              </ui:Button>
+            </StackPanel>
+          </Grid>
+
+          <Grid Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="2*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="Название" Style="{StaticResource Eyebrow}" Margin="0,0,0,6" />
+              <ui:TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="{Binding TitlePlaceholder, Mode=OneWay}" MaxLength="240"
+                          AutomationProperties.Name="Название встречи" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Text="Проект или команда" Style="{StaticResource Eyebrow}" Margin="0,0,0,6" />
+              <ComboBox IsEditable="True" ItemsSource="{Binding ProjectSuggestions}" Text="{Binding Project, UpdateSourceTrigger=PropertyChanged}"
+                        AutomationProperties.Name="Проект" />
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+              <TextBlock Text="Теги" Style="{StaticResource Eyebrow}" Margin="0,0,0,6" />
+              <ui:TextBox Text="{Binding Tags, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="через запятую" MaxLength="500"
+                          AutomationProperties.Name="Теги" />
+            </StackPanel>
+          </Grid>
+
+          <DockPanel Margin="0,14,0,0" Visibility="{Binding IsRecording, Converter={StaticResource Visible}}">
+            <ui:Button DockPanel.Dock="Right" Content="Поставить метку" Command="{Binding AddBookmarkCommand}" Margin="10,0,0,0" />
+            <ui:TextBox x:Name="BookmarkBox" Text="{Binding BookmarkText, UpdateSourceTrigger=PropertyChanged}" KeyDown="BookmarkKeyDown"
+                        PlaceholderText="Что сейчас важно? Enter — метка в этот момент (необязательно)" MaxLength="200">
+              <ui:TextBox.Icon><ui:SymbolIcon Symbol="Bookmark24" /></ui:TextBox.Icon>
+            </ui:TextBox>
+          </DockPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Sources. -->
+      <DockPanel Margin="0,28,0,12">
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+          <ui:Button Command="{Binding TogglePreviewCommand}" Margin="0,0,10,0" IsEnabled="{Binding CanEditSources}"
+                     ToolTip="Живые индикаторы без записи — проверить, что всё слышно">
+            <ui:Button.Style>
+              <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                <Setter Property="Content" Value="Проверить звук" />
+                <Setter Property="Icon"><Setter.Value><ui:SymbolIcon Symbol="Headphones24" /></Setter.Value></Setter>
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsPreviewing}" Value="True">
+                    <Setter Property="Content" Value="Остановить проверку" />
+                    <Setter Property="Appearance" Value="Primary" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </ui:Button.Style>
+          </ui:Button>
+          <ui:Button x:Name="AddSourceButton" Content="Добавить источник" Click="OpenAddMenu" IsEnabled="{Binding CanEditSources}" Appearance="Primary">
+            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+          </ui:Button>
+        </StackPanel>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Источники" Style="{StaticResource SectionTitle}" />
+          <TextBlock Text="Подпись источника станет именем говорящего в расшифровке — например, «Я» и «Собеседники»." Style="{StaticResource Caption}" Margin="0,2,0,0" />
+        </StackPanel>
+      </DockPanel>
+
+      <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Style="{StaticResource Surface}" Padding="14,12" Margin="0,0,0,8">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="280" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:ToggleSwitch IsChecked="{Binding Enabled}" IsEnabled="{Binding Editable}" VerticalAlignment="Center" Margin="0,0,14,0"
+                                 AutomationProperties.Name="Записывать этот источник" ToolTip="Записывать этот источник" />
+                <Border Grid.Column="1" Width="38" Height="38" CornerRadius="19" Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        Margin="0,0,14,0" VerticalAlignment="Center">
+                  <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,20,0">
+                  <TextBox Style="{StaticResource InlineEdit}" Text="{Binding Label, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding Editable, Converter={StaticResource Not}}"
+                           LostFocus="LabelLostFocus" KeyDown="LabelKeyDown" MaxLength="80" FontSize="14" FontWeight="SemiBold"
+                           ToolTip="Подпись — имя говорящего в расшифровке. Щёлкните, чтобы изменить." AutomationProperties.Name="Подпись источника" />
+                  <TextBlock Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,2,0,0">
+                    <Run Text="{Binding Details, Mode=OneWay}" />
+                  </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                  <controls:LevelMeter Height="8" Level="{Binding Level}" Peak="{Binding PeakHold}" IsActive="{Binding IsLive}"
+                                       Visibility="{Binding IsAudio, Converter={StaticResource Visible}}" AutomationProperties.Name="Уровень сигнала" />
+                  <TextBlock Text="{Binding State}" FontSize="12" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding State}">
+                    <TextBlock.Style>
+                      <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding HasError}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBlock.Style>
+                  </TextBlock>
+                </StackPanel>
+                <ui:Button Grid.Column="4" Appearance="Transparent" Margin="10,0,0,0" Padding="8" VerticalAlignment="Center"
+                           Command="{Binding DataContext.RemoveSourceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                           CommandParameter="{Binding}" IsEnabled="{Binding Editable}" ToolTip="Убрать источник" AutomationProperties.Name="Убрать источник">
+                  <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                </ui:Button>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Text="Источников пока нет. Нажмите «Добавить источник»: для созвона обычно нужны микрофон («Я») и системный звук («Собеседники»)."
+                 Style="{StaticResource Caption}" Margin="0,8,0,0" Visibility="{Binding Sources.Count, Converter={StaticResource CountToVisibility}}" />
+
+      <ui:InfoBar Margin="0,16,0,0" IsOpen="True" IsClosable="False" Severity="Informational" Title="Как не записать лишнее"
+                  Message="Системный звук содержит всё, что играет на компьютере. Чтобы игра или музыка не попали в запись, выберите звук отдельного приложения (Windows 11) или вкладку Chrome через расширение CallDock — до четырёх трансляций одновременно." />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
