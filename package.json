@@ -1,0 +1,8 @@
+{
+  "name": "calldock-qa",
+  "private": true,
+  "description": "End-to-end check of the CallDock Chrome extension against a running CallDock (tools/qa/browser.mjs).",
+  "engines": { "node": ">=22" },
+  "scripts": { "test:browser": "node tools/qa/browser.mjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}

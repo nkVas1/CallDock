@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>CallDock</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon-32.png" width="28" height="28" alt="">
+    <div class="brand">
+      <strong>CallDock</strong>
+      <span>Запись вкладок</span>
+    </div>
+    <div id="connection" class="pill" data-state="checking" role="status" aria-live="polite">
+      <i aria-hidden="true"></i><span>Проверяю…</span>
+    </div>
+  </header>
+
+  <p id="outdated" class="message" hidden>CallDock обновился, а расширение ещё работает по-старому. Откройте <b>chrome://extensions</b> и нажмите ↻ у «CallDock — запись вкладок».</p>
+
+  <section id="pairing" class="card" hidden>
+    <h2>Подключите CallDock</h2>
+    <p>Откройте CallDock → <b>Настройки</b> → <b>Chrome</b>, нажмите «Скопировать код» и вставьте его сюда.</p>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Код подключения" aria-label="Код подключения">
+    <div class="row">
+      <button id="save-token" class="primary">Подключить</button>
+      <button id="cancel-token" class="ghost" hidden>Отмена</button>
+    </div>
+  </section>
+
+  <section id="current" class="card">
+    <h2>Эта вкладка</h2>
+    <p id="tab-title" class="tab-title">—</p>
+    <button id="start" class="record"><i aria-hidden="true"></i><span>Записывать эту вкладку</span></button>
+    <label class="check"><input id="monitor" type="checkbox"> Слышать вкладку во время записи</label>
+    <div class="quality" role="radiogroup" aria-label="Видео">
+      <span>Видео</span>
+      <label><input type="radio" name="quality" value="normal"> 720p</label>
+      <label><input type="radio" name="quality" value="high"> 1080p</label>
+      <label><input type="radio" name="quality" value="audio"> Без видео</label>
+    </div>
+    <p id="tab-hint" class="hint">Каждая вкладка пишется отдельной дорожкой; другие вкладки, программы и игры в запись не попадут. Три-четыре трансляции сразу или игра параллельно — выберите «Без видео»: звук останется полным.</p>
+  </section>
+
+  <section id="recording" hidden>
+    <div class="section-head">
+      <h2 id="recording-title">Записываются</h2>
+      <button id="stop-all" class="ghost danger">Остановить все</button>
+    </div>
+    <ul id="tracks"></ul>
+  </section>
+
+  <p id="message" class="message" role="alert" hidden></p>
+
+  <details id="players-box">
+    <summary>Несколько трансляций на одной странице?</summary>
+    <p class="hint">Если на странице несколько плееров (залы конференции), откройте каждый в своей вкладке и запустите запись в каждой — до четырёх сразу.</p>
+    <button id="discover" class="secondary">Найти плееры на этой странице</button>
+    <div id="players"></div>
+  </details>
+
+  <footer>
+    <span id="version"></span>
+    <button id="change-token" class="link" hidden>Изменить код подключения</button>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
