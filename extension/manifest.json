@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CallDock — запись вкладок",
   "short_name": "CallDock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Записывает звук и видео вкладок Chrome — до четырёх одновременно — в локальный архив программы CallDock.",
   "minimum_chrome_version": "116",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1fj3pb994q/JgNTHugGRTv5QAIOaON2KTzkUUtcnHl7V95apwPvGSRfNvCMPh/PXiAxbLRvnWnyxjuHVan7wVBobkF7xkz3z7q4JJbbK2ruMF8lGVQJt4aYlIR1JF6YcOefNYzaWuQk2bjdxFgQIGBnt+AJzh2qPMy847JPkl/2pZP1GdO8yJqtfh251jRNa0RovKew8mKg9VegD3L47Z3Jns4v6uigCAUHjM+sj+dkWZp/UpQHvf5dvFK+Wo8fFk02xBIrqJXrO1AptldfQuFGpcUO+RbbgnpuMrHzijCJ5Aw0R+g1CaIbpCfXdcl4aXAg2hMd5/afa/kDk+Tq6mwIDAQAB",

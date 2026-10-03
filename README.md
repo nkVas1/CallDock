@@ -154,8 +154,9 @@ Start-Process ./src/CallDock.App/bin/x64/Debug/net10.0-windows/CallDock.exe
 npm run test:browser
 ```
 
-**Выпуск версии.** Поднимите номер в `Directory.Build.props` и `extension/manifest.json`, добавьте раздел в
-`CHANGELOG.md`, затем `git tag v1.2.3; git push --tags`. GitHub Actions соберёт установщик, переносимую версию и пакеты
+**Выпуск версии.** Поднимите номер в `Directory.Build.props` (и в `extension/manifest.json`, если менялось
+расширение — тогда окно расширения попросит перезагрузить его в Chrome), добавьте раздел в `CHANGELOG.md`, затем
+`git tag v1.2.3; git push --tags`. GitHub Actions соберёт установщик, переносимую версию и пакеты
 обновления и опубликует выпуск; установленные копии обновятся сами. Локально то же делает `./tools/Build.ps1`.
 
 ## Лицензия
