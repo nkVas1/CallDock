@@ -1,0 +1,61 @@
+name: Release
+
+# A tag v1.2.3 builds the installer, the portable ZIP and the update packages and publishes them as a GitHub release.
+# Installed copies of CallDock find the new version there and update themselves.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Tag matches the version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (./tools/Get-Version.ps1).Version
+          if ("v$version" -ne '${{ github.ref_name }}') { throw "Tag ${{ github.ref_name }} does not match version $version in the repository." }
+          "number=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Velopack CLI (same version as the library)
+        shell: pwsh
+        run: |
+          [xml]$app = Get-Content src/CallDock.App/CallDock.App.csproj
+          $velopack = $app.SelectSingleNode("//PackageReference[@Include='Velopack']").GetAttribute('Version')
+          dotnet tool install --global vpk --version $velopack
+
+      - name: Restore (lock files must match)
+        run: dotnet restore CallDock.slnx --locked-mode
+
+      - name: Previous release, for delta updates
+        shell: pwsh
+        run: |
+          # The very first release has nothing to download; every later one gets small delta packages.
+          vpk download github --repoUrl $env:REPO_URL --token ${{ secrets.GITHUB_TOKEN }} --outputDir artifacts/releases
+          if ($LASTEXITCODE) { Write-Warning 'No previous release: this one is published without delta packages.'; $global:LASTEXITCODE = 0 }
+
+      - name: Build, test and pack
+        shell: pwsh
+        run: ./tools/Build.ps1
+
+      - name: Publish the release
+        shell: pwsh
+        run: >
+          vpk upload github --repoUrl $env:REPO_URL --token ${{ secrets.GITHUB_TOKEN }} --outputDir artifacts/releases
+          --publish --releaseName "CallDock ${{ steps.version.outputs.number }}" --tag ${{ github.ref_name }}

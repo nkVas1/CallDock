@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version is the same everywhere
+        shell: pwsh
+        run: ./tools/Get-Version.ps1 | Format-List Version
+
+      - name: Restore (lock files must match)
+        run: dotnet restore CallDock.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build CallDock.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test CallDock.slnx -c Release --no-build
+
+      - name: Extension scripts parse
+        shell: pwsh
+        run: |
+          foreach ($file in 'background.js', 'offscreen.js') { node --check "extension/$file"; if ($LASTEXITCODE) { exit 1 } }
+          # popup.js is an ES module with top-level await
+          Copy-Item extension/popup.js "$env:RUNNER_TEMP/popup.mjs"
+          node --check "$env:RUNNER_TEMP/popup.mjs"; if ($LASTEXITCODE) { exit 1 }
