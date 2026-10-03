@@ -177,7 +177,8 @@
             <Run Text="1. В Chrome откройте" /><Run Text=" chrome://extensions " FontWeight="SemiBold" /><Run Text="и включите «Режим разработчика» (справа вверху)." /><LineBreak />
             <Run Text="2. «Загрузить распакованное расширение» → выберите папку расширения (кнопка ниже)." /><LineBreak />
             <Run Text="3. Откройте расширение CallDock и вставьте код подключения." /><LineBreak />
-            <Run Text="4. На вкладке с трансляцией нажмите «Записывать». Каждая вкладка — отдельная дорожка; слушать их одновременно не нужно." />
+            <Run Text="4. На вкладке с трансляцией нажмите «Записывать эту вкладку». Каждая вкладка — отдельная дорожка; для трёх-четырёх трансляций сразу выберите «Без видео»." /><LineBreak />
+            <Run Text="5. После обновления CallDock нажмите ↻ у расширения на странице chrome://extensions." />
           </TextBlock>
           <WrapPanel Margin="0,12,0,0">
             <ui:Button Content="Скопировать chrome://extensions" Command="{Binding OpenChromeExtensionsCommand}" Margin="0,0,8,8" />
