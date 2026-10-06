@@ -4,7 +4,8 @@
 //
 //   CALLDOCK_DATA=<CallDock data folder> node tools/qa/browser.mjs
 //
-// Options: QA_TABS (1–4, default 4), QA_SECONDS (default 6), QA_QUALITY (normal | high | audio).
+// Options: QA_TABS (1–4, default 4), QA_SECONDS (default 6), QA_QUALITY (normal | high | audio),
+// QA_WITH_SOURCES=1 (the first tab also starts the sources switched on in CallDock).
 // Needs Node 22+ (global WebSocket), Playwright's Chromium (npx playwright install chromium) or CALLDOCK_CHROMIUM,
 // and FFmpeg from tools/Get-MediaTools.ps1 (or CALLDOCK_FFPROBE).
 import { chromium } from "playwright";
@@ -32,6 +33,8 @@ const debugPort = 47833;
 const tabCount = Math.min(4, Math.max(1, Number(process.env.QA_TABS || 4)));
 const seconds = Number(process.env.QA_SECONDS || 6);
 const quality = process.env.QA_QUALITY || "normal";
+// QA_WITH_SOURCES=1: the first tab also starts the sources switched on in CallDock (microphone, system sound…).
+const withSources = process.env.QA_WITH_SOURCES === "1";
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const results = [];
 
@@ -139,7 +142,8 @@ const context = await chromium.launchPersistentContext(profile, {
 try {
   const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker");
   assert.equal(new URL(worker.url()).host, extensionId, "the extension ID must follow from the manifest key");
-  await worker.evaluate(async ([token, quality]) => { await chrome.storage.local.set({ token, monitor: false, quality }); }, [token, quality]);
+  await worker.evaluate(async ([token, quality, withSources]) => { await chrome.storage.local.set({ token, monitor: false, quality, withSources }); },
+    [token, quality, withSources]);
   for (let id = 1; id <= tabCount; id++) {
     const page = await context.newPage();
     await page.goto(`http://127.0.0.1:47832/?id=${id}`);

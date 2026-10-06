@@ -98,6 +98,8 @@ function render() {
   start.disabled = !tab || (mine ? mine.stopping : !connected || tracks.length >= MAX_TABS || !capturable(tab));
   start.title = !mine && tracks.length >= MAX_TABS ? `Одновременно записывается не больше ${MAX_TABS} вкладок` : "";
   $("monitor").disabled = !!mine;
+  // Only a new recording starts CallDock's own sources; one that is already going has them (or adds them in CallDock).
+  $("with-sources-row").hidden = connection.state !== "ok" || tracks.length > 0;
   for (const option of qualityOptions()) option.disabled = !!mine;
   $("tab-title").textContent = !tab ? "—" : capturable(tab) ? (tab.title || tab.url || "Без названия") : "Эту страницу Chrome записать не даёт";
 
@@ -188,6 +190,7 @@ $("token").addEventListener("keydown", event => { if (event.key === "Enter") sav
 $("change-token").onclick = () => { editingToken = true; render(); $("token").focus(); };
 $("cancel-token").onclick = () => { editingToken = false; $("token").value = ""; render(); };
 $("monitor").onchange = () => chrome.storage.local.set({ monitor: $("monitor").checked });
+$("with-sources").onchange = () => chrome.storage.local.set({ withSources: $("with-sources").checked });
 for (const option of qualityOptions()) option.onchange = () => chrome.storage.local.set({ quality: chosenQuality() });
 
 $("start").onclick = async () => {
@@ -198,7 +201,10 @@ $("start").onclick = async () => {
       await command("stop", { tabId: tab.id });
       showMessage("Запись вкладки сохраняется в CallDock.", "info");
     } else {
-      await command("start", { tabId: tab.id, monitor: $("monitor").checked, quality: chosenQuality() });
+      await command("start", {
+        tabId: tab.id, monitor: $("monitor").checked, quality: chosenQuality(),
+        withSources: !$("with-sources-row").hidden && $("with-sources").checked
+      });
       showMessage("Запись идёт в CallDock. Можно переключаться на другие вкладки и программы.", "info");
     }
   } catch (error) {
@@ -258,9 +264,10 @@ $("discover").onclick = async () => {
   }
 };
 
-const saved = await chrome.storage.local.get(["token", "monitor", "quality"]);
+const saved = await chrome.storage.local.get(["token", "monitor", "quality", "withSources"]);
 token = saved.token || "";
 $("monitor").checked = saved.monitor ?? true;
+$("with-sources").checked = saved.withSources ?? false;
 for (const option of qualityOptions()) option.checked = option.value === (saved.quality || "normal");
 [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 $("version").textContent = `Расширение ${chrome.runtime.getManifest().version}`;

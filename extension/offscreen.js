@@ -57,7 +57,7 @@ async function start(message) {
 
     const mimeType = quality ? "video/webm;codecs=vp8,opus" : "audio/webm;codecs=opus";
     if (!MediaRecorder.isTypeSupported(mimeType)) throw new Error("Этот браузер не умеет записывать WebM с VP8 и Opus.");
-    ({ id } = await api(message.token, "/tabs/start", { title: message.title, video: !!quality }));
+    ({ id } = await api(message.token, "/tabs/start", { title: message.title, video: !!quality, withSources: !!message.withSources }));
     const recorder = new MediaRecorder(media, quality
       ? { mimeType, videoBitsPerSecond: quality.bitrate, audioBitsPerSecond: 192_000 }
       : { mimeType, audioBitsPerSecond: 192_000 });
@@ -91,6 +91,8 @@ async function start(message) {
       state.pending.catch(error => { state.error ||= error.message; stop(state); });
     };
     recorder.onerror = event => { state.error ||= event.error?.message || "Ошибка записи Chrome."; stop(state); };
+    // The moment the recorder really started places the tab on CallDock's timeline, next to its other tracks.
+    recorder.onstart = () => { api(state.token, `/tabs/${id}/started`, { at: Date.now() }).catch(() => {}); };
     recorder.onstop = async () => {
       clearInterval(state.timer);
       try { await state.pending; } catch (error) { state.error ||= error.message; }

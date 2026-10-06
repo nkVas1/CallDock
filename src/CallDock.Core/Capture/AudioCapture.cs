@@ -98,6 +98,13 @@ public sealed class AudioCapture : IRecording
     public long BytesWritten => Interlocked.Read(ref bytes);
     public string? Error => Volatile.Read(ref error);
     public WaveFormat Format => recorder.WaveFormat;
+
+    /// <summary>«48 кГц · стерео · WAV»: what the person needs to know about a sound track, without codec jargon.</summary>
+    public static string Describe(WaveFormat format)
+    {
+        var channels = format.Channels switch { 1 => "моно", 2 => "стерео", var n => $"{n} каналов" };
+        return string.Create(System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), $"{format.SampleRate / 1000.0:0.#} кГц · {channels} · WAV");
+    }
     public long CaptureStartedAt { get; } = Stopwatch.GetTimestamp();
 
     private AudioCapture(WasapiRecorder recorder, MMDevice? device, RecordingTrack track, string folder)
@@ -105,7 +112,7 @@ public sealed class AudioCapture : IRecording
         this.recorder = recorder;
         this.device = device;
         Track = track;
-        track.Format = recorder.WaveFormat.ToString();
+        track.Format = Describe(recorder.WaveFormat);
         writer = new PcmTimelineWriter(folder, recorder.WaveFormat);
         startedQpc = (long)(Stopwatch.GetTimestamp() * (10_000_000.0 / Stopwatch.Frequency));
         recorder.DataAvailable += OnData;

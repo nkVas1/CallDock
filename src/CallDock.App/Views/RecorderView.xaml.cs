@@ -28,7 +28,7 @@ public partial class RecorderView : UserControl
     {
         AddSourceButton.IsEnabled = false;
         try { await vm.RefreshSourcesCommand.ExecuteAsync(null); }
-        finally { AddSourceButton.IsEnabled = vm.CanEditSources; }
+        finally { AddSourceButton.IsEnabled = vm.CanAddSources; }
 
         var menu = new ContextMenu { PlacementTarget = AddSourceButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
         menu.Items.Add(Group("Микрофон", SymbolRegular.Mic24, vm.Microphones, "Микрофонов не найдено"));

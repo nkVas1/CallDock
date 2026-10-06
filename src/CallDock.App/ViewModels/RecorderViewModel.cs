@@ -21,6 +21,7 @@ public sealed partial class RecorderViewModel : ObservableObject
         Project = host.Settings.LastProject;
         host.Recorder.Changed += () => Dispatch(OnRecorderChanged);
         host.Recorder.LastTabFinished += () => Dispatch(() => _ = StopAsync());
+        host.Recorder.SourceFailed += (name, reason) => Dispatch(() => host.Notifier.Warning($"«{name}» не подключился к записи", reason));
         timer.Tick += async (_, _) => await TickAsync();
         timer.Start();
     }
@@ -42,11 +43,11 @@ public sealed partial class RecorderViewModel : ObservableObject
     [ObservableProperty] public partial string BookmarkText { get; set; } = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEditSources), nameof(RecordButtonText), nameof(TitlePlaceholder))]
+    [NotifyPropertyChangedFor(nameof(CanPreview), nameof(RecordButtonText), nameof(TitlePlaceholder))]
     public partial bool IsRecording { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEditSources))]
+    [NotifyPropertyChangedFor(nameof(CanPreview), nameof(CanAddSources))]
     public partial bool IsBusy { get; set; }
 
     [ObservableProperty] public partial bool IsPreviewing { get; set; }
@@ -54,7 +55,9 @@ public sealed partial class RecorderViewModel : ObservableObject
     [ObservableProperty] public partial string Status { get; set; } = "Выберите источники и начните запись";
     [ObservableProperty] public partial bool HasSourceError { get; set; }
 
-    public bool CanEditSources => !IsRecording && !IsBusy;
+    /// <summary>Sources can be added at any time: during a recording a new one joins it right away.</summary>
+    public bool CanAddSources => !IsBusy;
+    public bool CanPreview => !IsRecording && !IsBusy;
     public string RecordButtonText => IsRecording ? "Завершить" : "Начать запись";
     public string TitlePlaceholder => $"Звонок {DateTime.Now:dd.MM HH:mm}";
 
@@ -64,7 +67,7 @@ public sealed partial class RecorderViewModel : ObservableObject
         await RefreshSourcesAsync();
         var saved = host.Settings.SavedSources;
         var initial = saved.Count > 0 ? saved : await Task.Run(AudioDevices.Defaults);
-        foreach (var spec in initial) Sources.Add(new SourceItemViewModel(spec));
+        foreach (var spec in initial) Sources.Add(Attach(new SourceItemViewModel(spec, !host.Settings.DisabledSources.Contains(spec.Key))));
         ProjectSuggestions = host.Archive.Projects();
     }
 
@@ -98,8 +101,58 @@ public sealed partial class RecorderViewModel : ObservableObject
             SourceKind.SystemAudio when !Sources.Any(s => s.Spec.Kind == SourceKind.SystemAudio) => "Собеседники",
             _ => null
         };
-        Sources.Add(new SourceItemViewModel(spec with { Label = label }));
+        var item = Attach(new SourceItemViewModel(spec with { Label = label }));
+        Sources.Add(item);
         SaveSources();
+        if (host.Recorder.IsRecording) await JoinAsync(item);
+    }
+
+    private SourceItemViewModel Attach(SourceItemViewModel item)
+    {
+        item.Toggled += OnToggled;
+        return item;
+    }
+
+    /// <summary>Before a recording a switch only chooses; during one the source joins or leaves it at once.</summary>
+    private async void OnToggled(SourceItemViewModel item)
+    {
+        if (host.Recorder.IsRecording && !host.Recorder.IsStopping)
+        {
+            if (item.Enabled) await JoinAsync(item);
+            else await LeaveAsync(item);
+        }
+        SaveSources();
+    }
+
+    private async Task JoinAsync(SourceItemViewModel item)
+    {
+        try
+        {
+            await host.Recorder.AddSourceAsync(item.Spec);
+            host.Notifier.Info("Источник подключён к записи", $"«{item.Label}» записывается с {Elapsed}.");
+        }
+        catch (Exception e)
+        {
+            item.SetEnabledQuietly(false);
+            host.Notifier.Error(e, $"«{item.Label}» не подключился к записи");
+        }
+    }
+
+    private async Task LeaveAsync(SourceItemViewModel item)
+    {
+        if (host.Recorder.Find(item.Spec) is null) return;
+        // The last source switched off is the end of the recording, not a recording of nothing.
+        if (host.Recorder.ActiveCount <= 1) { await StopAsync(); return; }
+        try
+        {
+            await host.Recorder.StopSourceAsync(item.Spec);
+            host.Notifier.Info("Источник отключён", $"Дорожка «{item.Label}» закончилась на {Elapsed}. Включите снова — запись продолжится с этого места.");
+        }
+        catch (Exception e)
+        {
+            item.SetEnabledQuietly(true);
+            host.Notifier.Error(e, $"«{item.Label}» не отключился");
+        }
     }
 
     [RelayCommand]
@@ -110,13 +163,16 @@ public sealed partial class RecorderViewModel : ObservableObject
         SaveSources();
     }
 
-    /// <summary>Stream links and windows are not remembered: links may carry access tokens, windows close.</summary>
+    /// <summary>Stream links and windows are not remembered: links may carry access tokens, windows close.
+    /// A switched-off source is remembered as such, so the next start records what the console shows.</summary>
     public void SaveSources()
     {
-        host.Settings.SavedSources = Sources
+        var kept = Sources
             .Where(s => s.Spec.Kind is SourceKind.Microphone or SourceKind.SystemAudio or SourceKind.Screen or SourceKind.Application)
             .Where(s => s.Spec.Kind != SourceKind.Application || s.Enabled)
-            .Select(s => s.Spec).ToList();
+            .ToArray();
+        host.Settings.SavedSources = kept.Select(s => s.Spec).ToList();
+        host.Settings.DisabledSources = kept.Where(s => !s.Enabled).Select(s => s.Spec.Key).ToList();
         host.Settings.LastProject = Project;
         host.SaveSettings();
     }
@@ -225,7 +281,13 @@ public sealed partial class RecorderViewModel : ObservableObject
             Status = "Готово к следующей встрече";
             HasSourceError = false;
         }
-        foreach (var item in Sources) item.Editable = !IsRecording && item.Spec.Kind != SourceKind.BrowserTab;
+        UpdateEditable();
+    }
+
+    private void UpdateEditable()
+    {
+        foreach (var item in Sources)
+            item.Editable = item.Spec.Kind != SourceKind.BrowserTab && (!IsRecording || host.Recorder.Find(item.Spec) is null);
     }
 
     private async Task TickAsync()
@@ -249,6 +311,7 @@ public sealed partial class RecorderViewModel : ObservableObject
             if (++ticks % 300 == 0) OnPropertyChanged(nameof(TitlePlaceholder)); // «Звонок 03.10 14:30» keeps the current time
             return;
         }
+        UpdateEditable();
         Elapsed = Display.Duration(recorder.Elapsed);
         if (++ticks % 30 != 0 || recorder.IsStopping) return;
         try { await recorder.CheckpointAsync(); }
@@ -259,10 +322,11 @@ public sealed partial class RecorderViewModel : ObservableObject
             return;
         }
         var captures = recorder.Recordings;
+        var active = recorder.ActiveCount;
         HasSourceError = captures.Any(r => r.Error is not null);
         Status = HasSourceError
             ? "Ошибка одного из источников — остальные продолжают запись"
-            : $"Идёт запись · {captures.Count} {Plural(captures.Count, "источник", "источника", "источников")} · {Display.Size(captures.Sum(r => r.BytesWritten))}";
+            : $"Идёт запись · {active} {Plural(active, "источник", "источника", "источников")} · {Display.Size(captures.Sum(r => r.BytesWritten))}";
     }
 
     public void Notify(string title, string message) => host.Notifier.Info(title, message);

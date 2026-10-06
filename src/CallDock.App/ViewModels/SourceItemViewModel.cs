@@ -58,7 +58,22 @@ public sealed partial class SourceItemViewModel : ObservableObject
     }
 
     [ObservableProperty] public partial bool Enabled { get; set; }
+    /// <summary>The label and the remove button: not for a source that is being recorded (its track is named already).</summary>
     [ObservableProperty] public partial bool Editable { get; set; } = true;
+    /// <summary>The switch: every source but a Chrome tab, which the extension controls.</summary>
+    public bool CanToggle => Spec.Kind != SourceKind.BrowserTab;
+
+    /// <summary>The person switched the source on or off: before a recording that chooses it, during one it joins or leaves.</summary>
+    public event Action<SourceItemViewModel>? Toggled;
+    private bool quiet;
+
+    /// <summary>Sets the switch without raising <see cref="Toggled"/>: to undo a change that could not be carried out.</summary>
+    public void SetEnabledQuietly(bool value)
+    {
+        quiet = true;
+        try { Enabled = value; }
+        finally { quiet = false; }
+    }
     /// <summary>The level as a share of the meter (−60…0 dBFS mapped to 0…1).</summary>
     [ObservableProperty] public partial double Level { get; set; }
     [ObservableProperty] public partial double PeakHold { get; set; }
@@ -100,5 +115,9 @@ public sealed partial class SourceItemViewModel : ObservableObject
         State = state;
     }
 
-    partial void OnEnabledChanged(bool value) { if (!IsLive) State = value ? "Готов" : "Не записывается"; }
+    partial void OnEnabledChanged(bool value)
+    {
+        if (!IsLive) State = value ? "Готов" : "Не записывается";
+        if (!quiet) Toggled?.Invoke(this);
+    }
 }

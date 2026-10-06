@@ -67,8 +67,13 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
         {
             var title = request.Title.Trim();
             if (title.Length is 0 or > 240) throw new ArgumentException("Название вкладки должно содержать 1–240 символов.");
-            var recording = await controller.AddBrowserAsync(title, request.Video);
+            var recording = await controller.AddBrowserAsync(title, request.Video, request.WithSources);
             return Results.Json(new { id = recording.Track.Id });
+        });
+        app.MapPost("/tabs/{id}/started", async (string id, TabStarted started) =>
+        {
+            if (Find(id) is { } track) await controller.TabStartedAsync(track, started.At);
+            return Results.Ok();
         });
         app.MapPost("/tabs/{id}/chunk/{sequence:long}", async (string id, long sequence, HttpContext context) =>
         {
@@ -119,8 +124,11 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
     /// and in every Chromium browser. Other extensions and web pages are turned away even before the pairing code is checked.</summary>
     public const string ExtensionId = "annnbeocomannganbpakmlleibjjkfie";
     private const string ExtensionOrigin = "chrome-extension://" + ExtensionId;
-    /// <summary>A tab asks to record; <paramref name="Video"/> is false when only its sound is recorded.</summary>
-    public sealed record TabStart(string Title, bool Video = true);
+    /// <summary>A tab asks to record; <paramref name="Video"/> is false when only its sound is recorded, and
+    /// <paramref name="WithSources"/> asks a new recording to start the sources switched on in CallDock as well.</summary>
+    public sealed record TabStart(string Title, bool Video = true, bool WithSources = false);
+    /// <summary>When the tab's recorder really started, by the wall clock (Unix milliseconds).</summary>
+    public sealed record TabStarted(long At);
     public sealed record TabMeter(float Peak);
     public sealed record TabFinish(string? Error);
 }

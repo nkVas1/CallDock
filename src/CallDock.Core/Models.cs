@@ -28,16 +28,43 @@ public sealed class RecordingTrack
     public SourceKind Kind { get; set; }
     public string Directory { get; set; } = "";
     public double OffsetSeconds { get; set; }
+    /// <summary>Where the track ends on the session timeline, in seconds; 0 when unknown (recordings of older versions).</summary>
+    public double EndSeconds { get; set; }
     public string Format { get; set; } = "";
     public string Status { get; set; } = "Recording";
     public string? Error { get; set; }
     public bool HasAudio { get; set; } = true;
     public bool HasVideo { get; set; }
+    /// <summary>The source this track recorded (<see cref="SourceSpec.Key"/>). A source switched off and on again during
+    /// a recording gets a new track with the same name: the same speaker in the transcript.</summary>
+    public string? SourceKey { get; set; }
+    /// <summary>A screen or window video that also carries the mixed sound of the session (see <see cref="SessionMix"/>).
+    /// That sound is not the track's own: it is not transcribed again.</summary>
+    public bool HasMixedAudio { get; set; }
+}
+
+/// <summary>
+/// The tracks of a recording mixed into one file: a screen video with everyone's sound, or the sound alone.
+/// A screen or window video receives the mix in its own file (<see cref="TrackId"/>), so the picture is not stored twice;
+/// otherwise the mix is a file of its own in the session folder (<see cref="File"/>).
+/// </summary>
+public sealed class SessionMix
+{
+    public string? TrackId { get; set; }
+    public string? File { get; set; }
+    /// <summary>Where the mix starts on the session timeline, in seconds.</summary>
+    public double OffsetSeconds { get; set; }
+    public bool HasVideo { get; set; }
+    /// <summary>The tracks whose sound is in the mix.</summary>
+    public List<string> Tracks { get; set; } = [];
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed class CallSession
 {
-    public int SchemaVersion { get; set; } = 2;
+    /// <summary>3: sources can join and leave during a recording, tracks carry their source, recordings are mixed.</summary>
+    public int SchemaVersion { get; set; } = CurrentSchema;
+    public const int CurrentSchema = 3;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "";
     public string Project { get; set; } = "";
@@ -52,6 +79,10 @@ public sealed class CallSession
     public bool AudioCompressed { get; set; }
     /// <summary>Chrome tab recordings were rewritten with a length and a seek index, which MediaRecorder does not write.</summary>
     public bool TabsIndexed { get; set; }
+    public SessionMix? Mix { get; set; }
+    /// <summary>The automatic mix was considered: made, not needed (one track, independent broadcasts) or failed.</summary>
+    public bool MixChecked { get; set; }
+    public string? MixError { get; set; }
     public string Folder { get; set; } = "";
     public List<RecordingTrack> Tracks { get; set; } = [];
     public List<TranscriptSegment> Transcript { get; set; } = [];
@@ -105,6 +136,8 @@ public sealed class AppSettings
     public int VideoFps { get; set; } = 24;
     /// <summary>Convert finished WAV tracks to lossless FLAC: about a third of the size, same sound.</summary>
     public bool CompressAudio { get; set; } = true;
+    /// <summary>After a recording, mix its tracks into one file: the screen video gets everyone's sound.</summary>
+    public bool AutoMix { get; set; } = true;
     /// <summary>Ctrl+Alt+R starts and stops recording, Ctrl+Alt+M sets a bookmark — from any application.</summary>
     public bool GlobalHotkeys { get; set; } = true;
     public bool CheckForUpdates { get; set; } = true;
@@ -114,6 +147,8 @@ public sealed class AppSettings
     /// <summary>Draw the window without the GPU: for old or broken video drivers that leave WPF windows blank.</summary>
     public bool SoftwareRendering { get; set; }
     public List<SourceSpec> SavedSources { get; set; } = [];
+    /// <summary>Saved sources switched off on the console (<see cref="SourceSpec.Key"/>): kept, but not recorded.</summary>
+    public List<string> DisabledSources { get; set; } = [];
     public string LastProject { get; set; } = "";
 }
 

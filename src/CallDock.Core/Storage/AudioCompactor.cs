@@ -24,7 +24,9 @@ public static class AudioCompactor
                 saved += await CompactSegmentAsync(segments[i], ct);
             }
             if (segments.Length > 0 && !track.Format.Contains("FLAC", StringComparison.Ordinal))
-                track.Format = string.IsNullOrEmpty(track.Format) ? "FLAC 24 бит без потерь" : track.Format + " · хранится как FLAC 24 бит";
+                track.Format = string.IsNullOrEmpty(track.Format) ? "FLAC 24 бит без потерь"
+                    : track.Format.EndsWith(" · WAV", StringComparison.Ordinal) ? track.Format[..^" · WAV".Length] + " · FLAC 24 бит без потерь"
+                    : track.Format + " · хранится как FLAC 24 бит";
         }
         session.AudioCompressed = true;
         return saved;

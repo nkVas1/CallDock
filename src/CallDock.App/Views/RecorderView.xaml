@@ -102,7 +102,7 @@
       <!-- Sources. -->
       <DockPanel Margin="0,28,0,12">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-          <ui:Button Command="{Binding TogglePreviewCommand}" Margin="0,0,10,0" IsEnabled="{Binding CanEditSources}"
+          <ui:Button Command="{Binding TogglePreviewCommand}" Margin="0,0,10,0" IsEnabled="{Binding CanPreview}"
                      ToolTip="Живые индикаторы без записи — проверить, что всё слышно">
             <ui:Button.Style>
               <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
@@ -117,7 +117,7 @@
               </Style>
             </ui:Button.Style>
           </ui:Button>
-          <ui:Button x:Name="AddSourceButton" Content="Добавить источник" Click="OpenAddMenu" IsEnabled="{Binding CanEditSources}" Appearance="Primary">
+          <ui:Button x:Name="AddSourceButton" Content="Добавить источник" Click="OpenAddMenu" IsEnabled="{Binding CanAddSources}" Appearance="Primary">
             <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
           </ui:Button>
         </StackPanel>
@@ -139,8 +139,8 @@
                   <ColumnDefinition Width="280" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ui:ToggleSwitch IsChecked="{Binding Enabled}" IsEnabled="{Binding Editable}" VerticalAlignment="Center" Margin="0,0,14,0"
-                                 AutomationProperties.Name="Записывать этот источник" ToolTip="Записывать этот источник" />
+                <ui:ToggleSwitch IsChecked="{Binding Enabled}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" Margin="0,0,14,0"
+                                 AutomationProperties.Name="{Binding Label, StringFormat='Записывать «{0}»'}" ToolTip="Записывать этот источник" />
                 <Border Grid.Column="1" Width="38" Height="38" CornerRadius="19" Background="{DynamicResource ControlFillColorSecondaryBrush}"
                         Margin="0,0,14,0" VerticalAlignment="Center">
                   <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />

@@ -26,7 +26,7 @@ function explain(error) {
   return text;
 }
 
-async function start({ tabId, monitor, quality }) {
+async function start({ tabId, monitor, quality, withSources }) {
   const { token } = await chrome.storage.local.get("token");
   if (!token) throw new Error("Сначала вставьте код подключения из CallDock.");
   const tab = await chrome.tabs.get(tabId);
@@ -35,7 +35,7 @@ async function start({ tabId, monitor, quality }) {
   catch (error) { throw new Error(explain(error)); }
   await ensureOffscreen();
   const title = (tab.title || new URL(tab.url || "about:blank").hostname || "Вкладка Chrome").slice(0, 240);
-  const result = await chrome.runtime.sendMessage({ target: "offscreen", type: "start", streamId, token, tabId: tab.id, title, monitor: !!monitor, quality });
+  const result = await chrome.runtime.sendMessage({ target: "offscreen", type: "start", streamId, token, tabId: tab.id, title, monitor: !!monitor, quality, withSources: !!withSources });
   if (result?.ok) {
     await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: "#E5484D" });
     await chrome.action.setBadgeText({ tabId: tab.id, text: "REC" });
