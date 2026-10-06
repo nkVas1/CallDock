@@ -23,9 +23,12 @@ public sealed class TrackItemViewModel(RecordingTrack track, long size)
 {
     public RecordingTrack Track { get; } = track;
     public string Name => Track.Name;
-    public string Details => string.Join(" · ", new[] { Track.Device, Track.Format, Display.Size(size) }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    public string Details => string.Join(" · ", new[] { Track.Device, Span, Track.Format, Sound, Display.Size(size) }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    /// <summary>«00:00:05–00:00:13» for a source that joined or left during the recording.</summary>
+    private string? Span => Track.EndSeconds > 0 ? $"{Display.Duration(Track.OffsetSeconds)}–{Display.Duration(Track.EndSeconds)}" : null;
+    private string? Sound => Track is { HasVideo: true, HasAudio: false } ? Track.HasMixedAudio ? "со звуком сведения" : "без звука" : null;
     public string? Error => Track.Error;
-    public bool CanListen => Track.HasAudio;
+    public bool CanListen => Track.HasAudio || Track.HasMixedAudio;
     public bool CanWatch => Track.HasVideo;
     public SymbolRegular Icon => Track.Kind switch
     {
@@ -60,9 +63,11 @@ public sealed partial class SessionDetailViewModel : ObservableObject
     }
 
     public CallSession Session { get; private set; } = null!;
-    /// <summary>Asks the page to play a track from a moment of the session (seconds from its start).</summary>
-    public event Action<RecordingTrack, double>? PlayRequested;
-    public event Action<RecordingTrack, double>? WatchRequested;
+    /// <summary>Asks the page to play a track or the mix from a moment of the session (seconds from its start).</summary>
+    public event Action<PlaybackSource, double>? PlayRequested;
+    public event Action<PlaybackSource, double>? WatchRequested;
+    /// <summary>Asks the page to let the person choose what to mix; the page calls <see cref="RequestMix"/>.</summary>
+    public event Action? MixRequested;
     /// <summary>The phrase being played changed: the page keeps it in view.</summary>
     public event Action<TranscriptRowViewModel>? CurrentRowChanged;
 
@@ -85,6 +90,14 @@ public sealed partial class SessionDetailViewModel : ObservableObject
     [ObservableProperty] public partial double ProcessingFraction { get; set; }
     [ObservableProperty] public partial bool ProcessingIndeterminate { get; set; }
     [ObservableProperty] public partial string TranscribeButtonText { get; set; } = "Расшифровать";
+    [ObservableProperty] public partial bool HasMix { get; set; }
+    [ObservableProperty] public partial bool MixHasVideo { get; set; }
+    [ObservableProperty] public partial string MixTitle { get; set; } = "";
+    [ObservableProperty] public partial string MixDetails { get; set; } = "";
+    [ObservableProperty] public partial string MixButtonText { get; set; } = "Свести дорожки…";
+
+    /// <summary>The mix of this recording, if it has one on disk.</summary>
+    private PlaybackSource? Mix => PlaybackSource.MixOf(host.Archive, Session);
 
     private IReadOnlyList<TranscriptRowViewModel> allRows = [];
     private TranscriptRowViewModel? currentRow;
@@ -118,6 +131,7 @@ public sealed partial class SessionDetailViewModel : ObservableObject
             _ => "Текста пока нет. Нажмите «Расшифровать» — речь распознаётся на этом компьютере, аудио никуда не уходит."
         };
         UpdateBanner();
+        UpdateMix(null);
         loading = false;
         _ = LoadSizesAsync(session);
     }
@@ -131,9 +145,35 @@ public sealed partial class SessionDetailViewModel : ObservableObject
         });
         if (Session.Id != session.Id) return;
         Tracks = tracks;
+        UpdateMix(await Task.Run(() => Mix?.Files.Sum(f => File.Exists(f) ? new FileInfo(f).Length : 0)));
         var parts = new List<string> { session.DateLabel, session.DurationLabel, Display.Size(total) };
         parts.Add($"{session.Tracks.Count} {(session.Tracks.Count == 1 ? "дорожка" : session.Tracks.Count is >= 2 and <= 4 ? "дорожки" : "дорожек")}");
         Meta = string.Join(" · ", parts);
+    }
+
+    /// <summary>The «Сведение» card: what the mix is, or how to make one.</summary>
+    private void UpdateMix(long? size)
+    {
+        var mix = Session.Mix is not null ? Mix : null;
+        HasMix = mix is not null;
+        MixHasVideo = mix?.HasVideo == true;
+        MixButtonText = HasMix ? "Свести заново…" : "Свести дорожки…";
+        if (mix is null)
+        {
+            MixTitle = "Сведения нет";
+            MixDetails = Session.MixError is { } error
+                ? "Сведение не получилось: " + error
+                : "Соберите дорожки в один файл: видео со звуком всех участников или общий звук.";
+            return;
+        }
+        var voices = Session.Mix!.Tracks.Count;
+        MixTitle = MixHasVideo ? "Сведение · видео со звуком" : "Сведение · все голоса";
+        MixDetails = string.Join(" · ", new[]
+        {
+            $"{voices} {(voices == 1 ? "дорожка звука" : voices is >= 2 and <= 4 ? "дорожки звука" : "дорожек звука")}",
+            Path.GetExtension(mix.Files[0]).TrimStart('.').ToUpperInvariant(),
+            size is > 0 ? Display.Size(size.Value) : null
+        }.Where(x => x is not null));
     }
 
     private void UpdateBanner()
@@ -145,6 +185,7 @@ public sealed partial class SessionDetailViewModel : ObservableObject
             { Status: SessionStatus.Interrupted } => ("Запись прервалась (сбой или выключение компьютера) и была восстановлена. Сохранено всё до момента сбоя.", InfoBarSeverity.Warning),
             { TranscriptionStatus: TranscriptionStatus.Failed } => ("Расшифровка не удалась: " + Session.TranscriptionError, InfoBarSeverity.Error),
             _ when errors.Length > 0 => (string.Join(" · ", errors), InfoBarSeverity.Warning),
+            { MixError: { } mixError } => ("Сведение не получилось: " + mixError + " Дорожки целы; свести можно заново на вкладке «Дорожки».", InfoBarSeverity.Warning),
             _ => ((string?)null, InfoBarSeverity.Informational)
         };
     }
@@ -202,11 +243,12 @@ public sealed partial class SessionDetailViewModel : ObservableObject
             : allRows.Where(r => r.Text.Contains(q, StringComparison.CurrentCultureIgnoreCase) || r.Source.Contains(q, StringComparison.CurrentCultureIgnoreCase)).ToArray();
     }
 
-    /// <summary>Marks the phrase being played, so the text follows the sound.</summary>
-    /// <summary>Marks the phrase being played: the last one of that track that has started, until a long pause follows it.</summary>
-    public void Follow(string source, double seconds)
+    /// <summary>Marks the phrase being played: the last one of that speaker (anyone's, in a mix) that has started,
+    /// until a long pause follows it.</summary>
+    public void Follow(string? speaker, double seconds)
     {
-        var row = allRows.Where(r => r.Source == source && r.Segment.Start <= seconds && seconds < r.Segment.End + 2).MaxBy(r => r.Segment.Start);
+        var row = allRows.Where(r => (speaker is null || r.Source == speaker) && r.Segment.Start <= seconds && seconds < r.Segment.End + 2)
+            .MaxBy(r => r.Segment.Start);
         if (row == currentRow) return;
         if (currentRow is not null) currentRow.IsCurrent = false;
         currentRow = row;
@@ -215,33 +257,85 @@ public sealed partial class SessionDetailViewModel : ObservableObject
         CurrentRowChanged?.Invoke(row);
     }
 
+    /// <summary>A phrase plays from the mix when there is one — the conversation as it sounded — otherwise from the
+    /// track of its speaker (when a source was switched off and on, the track that covers that moment).</summary>
     [RelayCommand]
     private void PlayRow(TranscriptRowViewModel? row)
     {
         if (row is null) return;
-        var track = Session.Tracks.FirstOrDefault(t => t.Name == row.Source && t.HasAudio) ?? Session.Tracks.FirstOrDefault(t => t.HasAudio);
-        if (track is not null) PlayRequested?.Invoke(track, row.Segment.Start);
+        var source = Mix ?? Speaker(row.Source, row.Segment.Start);
+        if (source is not null) PlayRequested?.Invoke(source, row.Segment.Start);
     }
 
     [RelayCommand]
     private void PlayBookmark(BookmarkRow? row)
     {
         if (row is null) return;
-        var track = Session.Tracks.FirstOrDefault(t => t.HasAudio);
-        if (track is not null) PlayRequested?.Invoke(track, row.Bookmark.Seconds);
+        var source = Mix ?? FirstSound();
+        if (source is not null) PlayRequested?.Invoke(source, row.Bookmark.Seconds);
     }
 
+    /// <summary>«Слушать»: a track, or — from the toolbar — the whole recording: its mix, or its first sound track.</summary>
     [RelayCommand]
     private void Listen(TrackItemViewModel? item)
     {
-        var track = item?.Track ?? Session.Tracks.FirstOrDefault(t => t.HasAudio);
-        if (track is not null) PlayRequested?.Invoke(track, track.OffsetSeconds);
+        var source = item is not null ? PlaybackSource.Of(host.Archive, Session, item.Track) : Mix ?? FirstSound();
+        if (source is not null) PlayRequested?.Invoke(source, source.OffsetSeconds);
     }
 
     [RelayCommand]
     private void Watch(TrackItemViewModel? item)
     {
-        if (item is not null) WatchRequested?.Invoke(item.Track, item.Track.OffsetSeconds);
+        if (item is not null) WatchRequested?.Invoke(PlaybackSource.Of(host.Archive, Session, item.Track), item.Track.OffsetSeconds);
+    }
+
+    [RelayCommand]
+    private void ListenMix() { if (Mix is { } mix) PlayRequested?.Invoke(mix, mix.OffsetSeconds); }
+
+    [RelayCommand]
+    private void WatchMix() { if (Mix is { HasVideo: true } mix) WatchRequested?.Invoke(mix, mix.OffsetSeconds); }
+
+    private PlaybackSource? FirstSound() => Session.Tracks.FirstOrDefault(t => t.HasAudio) is { } track ? PlaybackSource.Of(host.Archive, Session, track) : null;
+
+    private PlaybackSource? Speaker(string name, double seconds)
+    {
+        var tracks = Session.Tracks.Where(t => t.Name == name && t.HasAudio).OrderBy(t => t.OffsetSeconds).ToArray();
+        var track = tracks.LastOrDefault(t => t.OffsetSeconds <= seconds + 0.5) ?? tracks.FirstOrDefault();
+        return track is null ? FirstSound() : PlaybackSource.Of(host.Archive, Session, track);
+    }
+
+    [RelayCommand]
+    private void Remix()
+    {
+        if (Session.IsRecording) { host.Notifier.Info("Запись ещё идёт", "Свести дорожки можно после её завершения."); return; }
+        MixRequested?.Invoke();
+    }
+
+    /// <summary>The person chose what to mix: the mix is made in the background and replaces the previous one.</summary>
+    public void RequestMix(MixRequest request)
+    {
+        host.Processing.RequestMix(Session, request);
+        host.Notifier.Info("Сведение в очереди", "Готовый файл появится на вкладке «Дорожки». Исходные дорожки не меняются.");
+    }
+
+    /// <summary>A copy of the mix file, under a readable name, wherever the person wants it.</summary>
+    [RelayCommand]
+    private async Task ExportMixFileAsync()
+    {
+        if (Mix is not { } mix) return;
+        var extension = Path.GetExtension(mix.Files[0]).ToLowerInvariant();
+        var dialog = new SaveFileDialog
+        {
+            Title = "Сохранить сведение", FileName = SafeName(Session.Title) + extension, DefaultExt = extension,
+            Filter = mix.HasVideo ? "Видео MP4|*.mp4" : "Звук M4A (AAC)|*.m4a"
+        };
+        if (dialog.ShowDialog() != true) return;
+        await RunAsync("Сохраняю сведение…", async ct =>
+        {
+            await using var input = File.OpenRead(mix.Files[0]);
+            await using var output = File.Create(dialog.FileName);
+            await input.CopyToAsync(output, ct);
+        }, dialog.FileName);
     }
 
     [RelayCommand]

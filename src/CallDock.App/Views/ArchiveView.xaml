@@ -224,6 +224,30 @@
 
         <TabItem Header="Дорожки">
           <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+            <StackPanel>
+            <!-- The mix: everyone's sound in one file, over the screen video when there is one. -->
+            <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,14">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="PersonVoice24" FontSize="20" Margin="0,0,14,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding MixTitle}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                  <TextBlock Text="{Binding MixDetails}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+                <WrapPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" MaxWidth="440">
+                  <ui:Button Content="Слушать" Margin="8,0,0,0" Command="{Binding ListenMixCommand}" Visibility="{Binding HasMix, Converter={StaticResource Visible}}" />
+                  <ui:Button Content="Смотреть" Margin="8,0,0,0" Command="{Binding WatchMixCommand}" Visibility="{Binding MixHasVideo, Converter={StaticResource Visible}}" />
+                  <ui:Button Content="Сохранить…" Margin="8,0,0,0" Command="{Binding ExportMixFileCommand}" Visibility="{Binding HasMix, Converter={StaticResource Visible}}" />
+                  <ui:Button Content="{Binding MixButtonText}" Margin="8,0,0,0" Command="{Binding RemixCommand}" IsEnabled="{Binding IsReadOnly, Converter={StaticResource Not}}" />
+                </WrapPanel>
+              </Grid>
+            </Border>
+            <TextBlock Text="Дорожки" Style="{StaticResource Eyebrow}" Margin="2,0,0,6" />
             <ItemsControl ItemsSource="{Binding Tracks}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
@@ -254,6 +278,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            </StackPanel>
           </ScrollViewer>
         </TabItem>
 

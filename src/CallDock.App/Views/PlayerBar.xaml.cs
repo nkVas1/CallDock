@@ -16,7 +16,7 @@ public partial class PlayerBar : UserControl
 {
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private IReadOnlyList<PlaybackEntry> playlist = [];
-    private RecordingTrack? track;
+    private PlaybackSource? source;
     private int index = -1;
     private double pendingLocal;
     private bool playing;
@@ -34,14 +34,14 @@ public partial class PlayerBar : UserControl
 
     public AppHost? Host { get; set; }
     public string? SessionId { get; private set; }
-    /// <summary>The track being played and the session time now.</summary>
-    public event Action<string, double>? PositionChanged;
+    /// <summary>Whose phrases are being played (null: everyone's, a mix) and the session time now.</summary>
+    public event Action<string?, double>? PositionChanged;
 
-    public async Task LoadAsync(CallSession session, RecordingTrack target, double sessionSeconds)
+    public async Task LoadAsync(CallSession session, PlaybackSource target, double sessionSeconds)
     {
         if (Host is null) return;
         Visibility = Visibility.Visible;
-        if (SessionId == session.Id && track?.Id == target.Id && playlist.Count > 0 && !playlist[0].Temporary)
+        if (SessionId == session.Id && source?.Id == target.Id && playlist.Count > 0 && !playlist[0].Temporary)
         {
             Seek(sessionSeconds);
             Play();
@@ -51,12 +51,12 @@ public partial class PlayerBar : UserControl
         loading = new CancellationTokenSource();
         var ct = loading.Token;
         SessionId = session.Id;
-        track = target;
+        source = target;
         TrackText.Text = target.Name;
         NoteText.Text = "Готовлю…";
         try
         {
-            playlist = await Playback.PlanAsync(Host.Archive, session, target, sessionSeconds, video: false, ct);
+            playlist = await Playback.PlanAsync(target, sessionSeconds, video: false, ct);
             if (ct.IsCancellationRequested) return;
             NoteText.Text = playlist[0].Temporary ? "фрагмент 10 минут" : "";
             Position.Minimum = playlist[0].Start;
@@ -163,7 +163,7 @@ public partial class PlayerBar : UserControl
         playlist = [];
         index = -1;
         opened = false;
-        track = null;
+        source = null;
         SessionId = keepVisible ? SessionId : null;
         TimeText.Text = "00:00:00";
         Position.Value = Position.Minimum;
@@ -177,7 +177,7 @@ public partial class PlayerBar : UserControl
         if (index < 0 || !opened) return;
         var now = Now;
         Show(now);
-        if (track is not null) PositionChanged?.Invoke(track.Name, now);
+        if (source is not null) PositionChanged?.Invoke(source.Speaker, now);
     }
 
     private void TogglePlay(object sender, RoutedEventArgs e) { if (playing) Pause(); else Play(); }

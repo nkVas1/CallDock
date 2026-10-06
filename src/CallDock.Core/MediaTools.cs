@@ -42,6 +42,42 @@ public static class MediaTools
         }
     }
 
+    /// <summary>Runs FFmpeg and reports the share of the result written so far, given how long the result will be.</summary>
+    public static async Task RunWithProgressAsync(IEnumerable<string> args, double totalSeconds, IProgress<double>? progress, CancellationToken ct = default)
+    {
+        using var process = new Process { StartInfo = StartInfo(AppPaths.Ffmpeg, ["-progress", "pipe:1", "-nostats", .. args]) };
+        process.Start();
+        try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (InvalidOperationException) { }
+        var stderr = ReadTailAsync(process.StandardError);
+        try
+        {
+            while (await process.StandardOutput.ReadLineAsync(ct) is { } line)
+            {
+                if (progress is null || totalSeconds <= 0 || !line.StartsWith("out_time_us=", StringComparison.Ordinal)) continue;
+                if (long.TryParse(line.AsSpan("out_time_us=".Length).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var us) && us > 0)
+                    progress.Report(Math.Clamp(us / 1_000_000d / totalSeconds, 0, 1));
+            }
+            await process.WaitForExitAsync(ct);
+            var error = await stderr;
+            if (process.ExitCode != 0) throw new InvalidOperationException($"Медиадвижок: {error}");
+        }
+        catch
+        {
+            if (!process.HasExited) process.Kill(true);
+            await process.WaitForExitAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>The codec of the first video stream («h264», «vp8»…), or null when the file has no picture.</summary>
+    public static async Task<string?> VideoCodecAsync(string file, CancellationToken ct = default)
+    {
+        var json = await RunAsync(AppPaths.Ffprobe, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "json", file], ct);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("streams", out var streams) && streams.GetArrayLength() > 0
+            && streams[0].TryGetProperty("codec_name", out var codec) ? codec.GetString() : null;
+    }
+
     private static async Task<string> ReadTailAsync(StreamReader reader)
     {
         var tail = new Queue<string>();

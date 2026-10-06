@@ -56,40 +56,18 @@ public static class ExportService
         finally { File.Delete(list); if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    /// <summary>All audio tracks mixed on one timeline (each shifted by its start offset): WAV, FLAC, MP3 or M4A.</summary>
+    /// <summary>All voices of a recording in one sound file — every sound track on one timeline, mixed the way the
+    /// recording's own mix is (<see cref="Mixer"/>): WAV, FLAC, MP3 or M4A.</summary>
     public static async Task ExportMixAsync(Archive archive, CallSession session, string destination, CancellationToken ct)
     {
         var tracks = session.Tracks.Where(t => t.HasAudio && MediaTools.TrackFiles(archive.TrackFolder(session, t)).Count > 0).ToArray();
         if (tracks.Length == 0) throw new InvalidOperationException("Нет звуковых дорожек.");
-        var temporaryLists = new List<string>();
-        var dir = Path.GetDirectoryName(destination)!;
-        Directory.CreateDirectory(dir);
-        var ext = Path.GetExtension(destination).ToLowerInvariant();
-        string[] codec = ext switch
-        {
-            ".wav" => ["-c:a", "pcm_f32le", "-rf64", "auto"],
-            ".flac" => ["-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24"],
-            ".mp3" => ["-c:a", "libmp3lame", "-b:a", "192k"],
-            ".m4a" => ["-c:a", "aac", "-b:a", "192k"],
-            _ => throw new ArgumentException("Общая дорожка сохраняется в WAV, FLAC, MP3 или M4A.")
-        };
-        var temp = Path.Combine(dir, "." + Guid.NewGuid().ToString("N") + ext);
+        var temporary = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(destination))!, "." + Guid.NewGuid().ToString("N") + Path.GetExtension(destination));
         try
         {
-            List<string> args = ["-hide_banner", "-loglevel", "error"];
-            foreach (var track in tracks)
-            {
-                var list = await MediaTools.ConcatListAsync(MediaTools.TrackFiles(archive.TrackFolder(session, track)), dir);
-                temporaryLists.Add(list);
-                args.AddRange(["-f", "concat", "-safe", "0", "-i", list]);
-            }
-            var filters = tracks.Select((t, i) => $"[{i}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay={Math.Round(t.OffsetSeconds * 1000).ToString(CultureInfo.InvariantCulture)}:all=1[a{i}]");
-            var inputs = string.Concat(Enumerable.Range(0, tracks.Length).Select(i => $"[a{i}]"));
-            var filter = string.Join(';', filters) + ";" + inputs + $"amix=inputs={tracks.Length}:duration=longest:normalize=1[out]";
-            args.AddRange(["-filter_complex", filter, "-map", "[out]", .. codec, temp]);
-            await MediaTools.RunAsync(AppPaths.Ffmpeg, args, ct);
-            File.Move(temp, destination, true);
+            await Mixer.RenderAsync(archive, session, new MixPlan(tracks, null), temporary, null, ct);
+            File.Move(temporary, destination, true);
         }
-        finally { foreach (var list in temporaryLists) File.Delete(list); if (File.Exists(temp)) File.Delete(temp); }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 }

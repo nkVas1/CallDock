@@ -47,6 +47,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Threads = Math.Clamp(s.CpuThreads, 1, MaxThreads);
         AutoTranscribe = s.AutoTranscribe;
         CompressAudio = s.CompressAudio;
+        AutoMix = s.AutoMix;
         GlobalHotkeys = s.GlobalHotkeys;
         CheckForUpdates = s.CheckForUpdates;
         Theme = Themes.FirstOrDefault(t => t.Value == s.Theme) ?? Themes[0];
@@ -81,6 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] public partial int Threads { get; set; }
     [ObservableProperty] public partial bool AutoTranscribe { get; set; }
     [ObservableProperty] public partial bool CompressAudio { get; set; }
+    [ObservableProperty] public partial bool AutoMix { get; set; }
     [ObservableProperty] public partial bool GlobalHotkeys { get; set; }
     [ObservableProperty] public partial string HotkeyConflicts { get; set; } = "";
     [ObservableProperty] public partial bool CheckForUpdates { get; set; }
@@ -108,6 +110,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnThreadsChanged(int value) => Save(s => s.CpuThreads = value);
     partial void OnAutoTranscribeChanged(bool value) => Save(s => s.AutoTranscribe = value);
     partial void OnCompressAudioChanged(bool value) { Save(s => s.CompressAudio = value); if (value) host.Processing.Resume(host.Archive.Search(limit: 500)); }
+    partial void OnAutoMixChanged(bool value) => Save(s => s.AutoMix = value);
     partial void OnGlobalHotkeysChanged(bool value) { Save(s => s.GlobalHotkeys = value); if (!loading) HotkeysChanged?.Invoke(); }
     partial void OnCheckForUpdatesChanged(bool value) => Save(s => s.CheckForUpdates = value);
     partial void OnThemeChanged(Option<string> value) { Save(s => s.Theme = value.Value); if (!loading) AppearanceChanged?.Invoke(); }

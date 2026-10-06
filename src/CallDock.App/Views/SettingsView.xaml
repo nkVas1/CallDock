@@ -137,6 +137,16 @@
           </StackPanel>
         </DockPanel>
       </Border>
+      <Border Style="{StaticResource Row}">
+        <DockPanel>
+          <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding AutoMix}" AutomationProperties.Name="Сводить дорожки после записи" />
+          <StackPanel>
+            <TextBlock Text="Сводить дорожки после записи" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            <TextBlock Text="Готовый файл со всеми голосами: запись экрана получает звук всех дорожек (картинка не дублируется), запись без экрана — общий звук в M4A. Отдельные дорожки остаются. Несколько трансляций из Chrome не сводятся сами — только по кнопке в архиве."
+                       Style="{StaticResource Caption}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
 
       <!-- Recording -->
       <TextBlock Text="Запись" Style="{StaticResource Group}" />

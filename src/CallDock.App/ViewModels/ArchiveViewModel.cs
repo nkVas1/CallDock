@@ -118,19 +118,27 @@ public sealed partial class ArchiveViewModel : ObservableObject
         else ScheduleRefresh();
     }
 
-    private static string Short(ProcessingState state) =>
-        state.Fraction is { } f ? $"Расшифровка {f:P0}" : state.Text.StartsWith("Сжатие", StringComparison.Ordinal) ? "Сжатие…" : "Обработка…";
+    private static string Short(ProcessingState state) => state.Stage switch
+    {
+        ProcessingStage.Transcribe => $"Расшифровка {state.Fraction ?? 0:P0}",
+        ProcessingStage.Mix => $"Сведение {state.Fraction ?? 0:P0}",
+        ProcessingStage.Compress => "Сжатие…",
+        _ => "Подготовка…"
+    };
 
     /// <summary>Background work finished something worth showing (a transcript, a status, a new track).</summary>
     private static bool Changed(CallSession shown, CallSession stored) =>
         shown.Status != stored.Status || shown.TranscriptionStatus != stored.TranscriptionStatus
         || shown.Transcript.Count != stored.Transcript.Count || shown.AudioCompressed != stored.AudioCompressed || shown.TabsIndexed != stored.TabsIndexed
         || shown.Tracks.Count != stored.Tracks.Count || shown.Bookmarks.Count != stored.Bookmarks.Count
+        || shown.Mix?.CreatedAt != stored.Mix?.CreatedAt || shown.MixError != stored.MixError
         || Math.Abs(shown.DurationSeconds - stored.DurationSeconds) > 1;
 
     /// <summary>Fields typed in the detail but not saved yet must not be overwritten by a refresh.</summary>
     private static bool IsEditing(SessionDetailViewModel detail, CallSession stored) =>
         detail.Title != stored.Title || detail.Project != stored.Project || detail.Tags != stored.Tags || detail.Notes != stored.Notes;
+
+    public void Notify(string title, string message) => host.Notifier.Info(title, message);
 
     private static void Dispatch(Action action) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action);
 }

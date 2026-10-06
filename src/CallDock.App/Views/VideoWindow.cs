@@ -7,8 +7,8 @@ using Wpf.Ui.Controls;
 
 namespace CallDock.App.Views;
 
-/// <summary>A video track in its own window: screen and window recordings play as they are, Chrome tabs and streams
-/// as a converted two-minute fragment from the chosen moment.</summary>
+/// <summary>A video in its own window — a track or the mix of a recording. Screen and window recordings and mixes play
+/// as they are; Chrome tabs and streams as a converted two-minute fragment from the chosen moment.</summary>
 public sealed class VideoWindow : FluentWindow
 {
     private readonly MediaElement media = new() { LoadedBehavior = MediaState.Manual, UnloadedBehavior = MediaState.Manual, ScrubbingEnabled = true };
@@ -20,12 +20,12 @@ public sealed class VideoWindow : FluentWindow
     private double pending;
     private bool playing = true;
 
-    public static async Task OpenAsync(Window? owner, AppHost host, CallSession session, RecordingTrack track, double seconds)
+    public static async Task OpenAsync(Window? owner, AppHost host, CallSession session, PlaybackSource source, double seconds)
     {
         try
         {
-            var playlist = await Playback.PlanAsync(host.Archive, session, track, seconds, video: true, CancellationToken.None);
-            var window = new VideoWindow(playlist, seconds, $"{track.Name} — {session.Title}") { Owner = owner };
+            var playlist = await Playback.PlanAsync(source, seconds, video: true, CancellationToken.None);
+            var window = new VideoWindow(playlist, seconds, $"{source.Name} — {session.Title}") { Owner = owner };
             window.Show();
         }
         catch (Exception e) { host.Notifier.Error(e, "Не удалось открыть видео"); }
@@ -38,7 +38,7 @@ public sealed class VideoWindow : FluentWindow
         Width = 960; Height = 640; MinWidth = 520; MinHeight = 340;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ExtendsContentIntoTitleBar = true;
-        WindowBackdropType = WindowBackdropType.Mica;
+        WindowBackdropType = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) ? WindowBackdropType.Mica : WindowBackdropType.None;
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
@@ -93,7 +93,7 @@ public sealed class VideoWindow : FluentWindow
 
     private void Seek(double seconds)
     {
-        var target = Math.Clamp(seconds, playlist[0].Start, playlist[^1].End - 0.05);
+        var target = Math.Clamp(seconds, playlist[0].Start, Math.Max(playlist[0].Start, playlist[^1].End - 0.05));
         var at = 0;
         for (var i = playlist.Count - 1; i >= 0; i--) if (playlist[i].Start <= target) { at = i; break; }
         if (at == index && media.Source is not null) media.Position = TimeSpan.FromSeconds(target - playlist[at].Start);

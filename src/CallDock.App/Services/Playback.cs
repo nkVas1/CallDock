@@ -10,6 +10,27 @@ public sealed record PlaybackEntry(string File, double Start, double Duration, b
 }
 
 /// <summary>
+/// Something the archive plays: one track, or the mix of a recording. <paramref name="Speaker"/> is whose phrases the
+/// transcript follows while it plays — null for a mix, where everyone is heard.
+/// </summary>
+public sealed record PlaybackSource(string Id, string Name, IReadOnlyList<string> Files, double OffsetSeconds, bool HasVideo, string? Speaker)
+{
+    public static PlaybackSource Of(Archive archive, CallSession session, RecordingTrack track) =>
+        new(track.Id, track.Name, MediaTools.TrackFiles(archive.TrackFolder(session, track)), track.OffsetSeconds, track.HasVideo,
+            track.HasMixedAudio ? null : track.Name);
+
+    /// <summary>The mix of the recording, if it has one on disk.</summary>
+    public static PlaybackSource? MixOf(Archive archive, CallSession session)
+    {
+        if (session.Mix is not { } mix) return null;
+        IReadOnlyList<string> files = mix.TrackId is { } trackId && session.Tracks.FirstOrDefault(t => t.Id == trackId) is { } track
+            ? MediaTools.TrackFiles(archive.TrackFolder(session, track))
+            : mix.File is { } file && System.IO.File.Exists(Path.Combine(archive.Folder(session), file)) ? [Path.Combine(archive.Folder(session), file)] : [];
+        return files.Count == 0 ? null : new("mix", "Сведение", files, mix.OffsetSeconds, mix.HasVideo, null);
+    }
+}
+
+/// <summary>
 /// Turns a track into something Windows can play from a given moment. WAV, FLAC and MP4 play as they are, segment
 /// after segment. WebM (Chrome tabs) and MKV (streams) are not supported by the Windows player, so a fragment from
 /// the requested moment is converted on the fly: ten minutes of sound, or two minutes of video.
@@ -21,14 +42,13 @@ public static class Playback
 
     public static string PreviewFolder => Path.Combine(AppPaths.Data, "preview");
 
-    public static async Task<IReadOnlyList<PlaybackEntry>> PlanAsync(Archive archive, CallSession session, RecordingTrack track,
-        double seconds, bool video, CancellationToken ct)
+    public static async Task<IReadOnlyList<PlaybackEntry>> PlanAsync(PlaybackSource source, double seconds, bool video, CancellationToken ct)
     {
-        var files = MediaTools.TrackFiles(archive.TrackFolder(session, track));
+        var files = source.Files;
         if (files.Count == 0) throw new InvalidOperationException("У этой дорожки нет сохранённых данных.");
         var durations = await Task.WhenAll(files.Select(f => MediaTools.DurationAsync(f, ct)));
         var entries = new List<PlaybackEntry>();
-        var start = track.OffsetSeconds;
+        var start = source.OffsetSeconds;
         for (var i = 0; i < files.Count; i++)
         {
             entries.Add(new(files[i], start, durations[i], false));
