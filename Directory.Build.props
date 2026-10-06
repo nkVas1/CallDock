@@ -16,7 +16,7 @@
     <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Company>CallDock</Company>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
