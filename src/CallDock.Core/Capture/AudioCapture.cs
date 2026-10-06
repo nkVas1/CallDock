@@ -80,7 +80,9 @@ public sealed class AudioCapture : IRecording
 {
     private readonly WasapiRecorder recorder;
     private readonly MMDevice? device;
-    private readonly Channel<Packet> packets = Channel.CreateBounded<Packet>(new BoundedChannelOptions(512) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
+    /// <summary>About a minute of sound (packets of ~10 ms): a slow disk shared with a screen recording can stall writing
+    /// for seconds, and the sound waits here instead of being lost.</summary>
+    private readonly Channel<Packet> packets = Channel.CreateBounded<Packet>(new BoundedChannelOptions(6000) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
     private readonly PcmTimelineWriter writer;
     private readonly long startedQpc;
     private readonly Stopwatch clock = Stopwatch.StartNew();
@@ -88,6 +90,7 @@ public sealed class AudioCapture : IRecording
     private Task? stopTask;
     private readonly PeakMeter meter = new();
     private long bytes;
+    private long droppedFrames;
     private string? error;
     private readonly object stopGate = new();
     private sealed record Packet(byte[] Data, long Frame);
@@ -96,7 +99,9 @@ public sealed class AudioCapture : IRecording
     /// <summary>The loudest sample since the previous read (0…1).</summary>
     public float Peak => meter.Take();
     public long BytesWritten => Interlocked.Read(ref bytes);
-    public string? Error => Volatile.Read(ref error);
+    public string? Error => Volatile.Read(ref error) ?? (Interlocked.Read(ref droppedFrames) is > 0 and var dropped
+        ? $"Компьютер не успевал записывать звук: пропущено {dropped * 1000 / recorder.WaveFormat.SampleRate} мс, на их месте тишина."
+        : null);
     public WaveFormat Format => recorder.WaveFormat;
 
     /// <summary>«48 кГц · стерео · WAV»: what the person needs to know about a sound track, without codec jargon.</summary>
@@ -166,7 +171,7 @@ public sealed class AudioCapture : IRecording
             position = (long)(clock.Elapsed.TotalSeconds * format.SampleRate) - data.Length / format.BlockAlign;
         meter.Feed(PcmPeak(data, format));
         if (!packets.Writer.TryWrite(new Packet(data.ToArray(), position)))
-            error = "Диск не успевает: пропущен аудиопакет. Пропуск сохранён как тишина.";
+            Interlocked.Add(ref droppedFrames, data.Length / format.BlockAlign);
     }
 
     public static float PcmPeak(ReadOnlySpan<byte> data, WaveFormat format)
@@ -195,13 +200,16 @@ public sealed class AudioCapture : IRecording
     {
         try
         {
+            var flushed = Stopwatch.StartNew();
             while (!packets.Reader.Completion.IsCompleted)
             {
                 while (packets.Reader.TryRead(out var packet)) writer.WriteAt(packet.Frame, packet.Data);
                 // Loopback can stop producing packets during silence. Leave 500ms for delivery jitter.
                 var elapsed = Math.Max(0, clock.Elapsed.TotalSeconds - 0.5);
                 writer.PadTo((long)(elapsed * recorder.WaveFormat.SampleRate));
-                writer.Flush();
+                // The header is rewritten once a second, not on every pass: each rewrite is a seek on a hard disk. A WAV
+                // cut off by a crash is repaired on the next start anyway.
+                if (flushed.Elapsed >= TimeSpan.FromSeconds(1)) { writer.Flush(); flushed.Restart(); }
                 Interlocked.Exchange(ref bytes, writer.FramesWritten * recorder.WaveFormat.BlockAlign);
                 await Task.Delay(100);
             }
