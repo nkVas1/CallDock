@@ -138,6 +138,8 @@ public sealed class AppSettings
     public bool CompressAudio { get; set; } = true;
     /// <summary>After a recording, mix its tracks into one file: the screen video gets everyone's sound.</summary>
     public bool AutoMix { get; set; } = true;
+    /// <summary>What to do when another application starts using the microphone: off | ask | auto.</summary>
+    public string CallDetection { get; set; } = "ask";
     /// <summary>Ctrl+Alt+R starts and stops recording, Ctrl+Alt+M sets a bookmark — from any application.</summary>
     public bool GlobalHotkeys { get; set; } = true;
     public bool CheckForUpdates { get; set; } = true;

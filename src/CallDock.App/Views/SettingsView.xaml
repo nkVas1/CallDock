@@ -151,6 +151,17 @@
       <!-- Recording -->
       <TextBlock Text="Запись" Style="{StaticResource Group}" />
       <Border Style="{StaticResource Row}">
+        <DockPanel>
+          <ComboBox DockPanel.Dock="Right" Width="230" ItemsSource="{Binding CallOptions}" SelectedItem="{Binding Calls}"
+                    AutomationProperties.Name="Когда начинается звонок" VerticalAlignment="Center" />
+          <StackPanel Margin="0,0,16,0">
+            <TextBlock Text="Когда начинается звонок" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            <TextBlock Text="CallDock видит, какое приложение включило микрофон — Zoom, Телемост, Telegram, встреча в браузере, — так же, как значок микрофона на панели задач. Запись, начатая так, предложит завершиться, когда приложение отпустит микрофон."
+                       Style="{StaticResource Caption}" TextWrapping="Wrap" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <Border Style="{StaticResource Row}">
         <StackPanel>
           <DockPanel>
             <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding GlobalHotkeys}" AutomationProperties.Name="Горячие клавиши" />

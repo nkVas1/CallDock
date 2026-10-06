@@ -28,6 +28,7 @@ public partial class MainWindow : FluentWindow
     private readonly ContentDialogService dialogs = new();
     private TrayService? tray;
     private HotkeyService? hotkeys;
+    private CallWatcher? calls;
     private bool quitting;
 
     public MainWindow(AppHost host)
@@ -43,6 +44,7 @@ public partial class MainWindow : FluentWindow
         ApplyTheme();
         settings.AppearanceChanged += ApplyTheme;
         settings.HotkeysChanged += ApplyHotkeys;
+        settings.CallsChanged += () => calls?.Apply();
         settings.RestartRequested += () => _ = RestartAsync();
         host.Recorder.Changed += () => Dispatcher.BeginInvoke(UpdateRecordingIndicators);
         pill.Tick += (_, _) => UpdateRecordingIndicators();
@@ -65,6 +67,7 @@ public partial class MainWindow : FluentWindow
         try { await recorder.LoadAsync(); }
         catch (Exception ex) { host.Notifier.Error(ex, "Не удалось загрузить источники"); }
         archive.Refresh();
+        calls = new CallWatcher(host, recorder);
         foreach (var message in host.Recovered) host.Notifier.Warning("Восстановлено", message);
         if (host.StartupWarning is not null) host.Notifier.Warning("Архив", host.StartupWarning);
         if (host.BridgeError is not null) host.Notifier.Warning("Chrome", host.BridgeError);
@@ -221,6 +224,7 @@ public partial class MainWindow : FluentWindow
         archive.Detail?.SaveDetails();
         recorder.SaveSources();
         hotkeys?.Dispose();
+        calls?.Dispose();
         tray?.Dispose();
         try { await host.DisposeAsync(); }
         catch (Exception e) { Log.Error("Shutdown", e); }

@@ -52,6 +52,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         CheckForUpdates = s.CheckForUpdates;
         Theme = Themes.FirstOrDefault(t => t.Value == s.Theme) ?? Themes[0];
         Fps = FpsOptions.FirstOrDefault(f => f.Value == s.VideoFps) ?? FpsOptions[1];
+        Calls = CallOptions.FirstOrDefault(c => c.Value == s.CallDetection) ?? CallOptions[0];
         SoftwareRendering = s.SoftwareRendering;
         ArchiveRoot = host.Archive.Root;
         host.Updates.Changed += () => Dispatch(() =>
@@ -68,6 +69,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<Option<string>> Languages { get; } =
         [new("auto", "Автоматически"), new("ru", "Русский"), new("en", "Английский"), new("de", "Немецкий"), new("uk", "Украинский")];
     public IReadOnlyList<Option<string>> Themes { get; } = [new("system", "Как в Windows"), new("dark", "Тёмная"), new("light", "Светлая")];
+    public IReadOnlyList<Option<string>> CallOptions { get; } =
+    [
+        new(Services.CallWatcher.Ask, "Предлагать записать"),
+        new(Services.CallWatcher.Auto, "Записывать сразу"),
+        new(Services.CallWatcher.Off, "Ничего не делать")
+    ];
     public IReadOnlyList<Option<int>> FpsOptions { get; } = [new(15, "15 кадров/с — экономно"), new(24, "24 кадра/с"), new(30, "30 кадров/с — плавно")];
     public int MaxThreads { get; } = Math.Max(1, Math.Min(16, Environment.ProcessorCount));
     public IReadOnlyList<int> ThreadOptions => Enumerable.Range(1, MaxThreads).ToArray();
@@ -83,6 +90,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] public partial bool AutoTranscribe { get; set; }
     [ObservableProperty] public partial bool CompressAudio { get; set; }
     [ObservableProperty] public partial bool AutoMix { get; set; }
+    [ObservableProperty] public partial Option<string> Calls { get; set; } = null!;
     [ObservableProperty] public partial bool GlobalHotkeys { get; set; }
     [ObservableProperty] public partial string HotkeyConflicts { get; set; } = "";
     [ObservableProperty] public partial bool CheckForUpdates { get; set; }
@@ -105,12 +113,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Raised when the theme or the hotkeys must be re-applied by the window.</summary>
     public event Action? AppearanceChanged;
     public event Action? HotkeysChanged;
+    /// <summary>Raised when the reaction to calls changed.</summary>
+    public event Action? CallsChanged;
 
     partial void OnLanguageChanged(Option<string> value) => Save(s => s.Language = value.Value);
     partial void OnThreadsChanged(int value) => Save(s => s.CpuThreads = value);
     partial void OnAutoTranscribeChanged(bool value) => Save(s => s.AutoTranscribe = value);
     partial void OnCompressAudioChanged(bool value) { Save(s => s.CompressAudio = value); if (value) host.Processing.Resume(host.Archive.Search(limit: 500)); }
     partial void OnAutoMixChanged(bool value) => Save(s => s.AutoMix = value);
+    partial void OnCallsChanged(Option<string> value) { Save(s => s.CallDetection = value.Value); if (!loading) CallsChanged?.Invoke(); }
     partial void OnGlobalHotkeysChanged(bool value) { Save(s => s.GlobalHotkeys = value); if (!loading) HotkeysChanged?.Invoke(); }
     partial void OnCheckForUpdatesChanged(bool value) => Save(s => s.CheckForUpdates = value);
     partial void OnThemeChanged(Option<string> value) { Save(s => s.Theme = value.Value); if (!loading) AppearanceChanged?.Invoke(); }
