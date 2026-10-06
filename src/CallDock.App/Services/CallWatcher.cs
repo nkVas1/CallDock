@@ -86,9 +86,7 @@ public sealed class CallWatcher : IDisposable
         promptFor = forId;
         prompt.Accepted += async () => { Forget(); await onAccept(); };
         prompt.Declined += () => { Forget(); onDecline(); };
-        prompt.Show();
-        // The tray tells the same when the main window is hidden, in case the note is behind a full-screen call.
-        if (!(Application.Current.MainWindow?.IsVisible ?? false)) host.Notifier.Warning(title, message);
+        prompt.Show(); // on top of every window, the call's own included: no second notice is needed
     }
 
     private void Forget() { prompt = null; promptFor = null; }
