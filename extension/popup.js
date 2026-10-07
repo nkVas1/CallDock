@@ -7,6 +7,7 @@ const labels = {
   checking: "Проверяю…",
   ok: "Подключено",
   recording: "Идёт запись",
+  paused: "Пауза",
   offline: "CallDock не запущен",
   "bad-token": "Код не подходит",
   unpaired: "Не подключено"
@@ -44,7 +45,7 @@ async function checkConnection() {
     else if (!response.ok) connection = { state: "offline" };
     else {
       const data = await response.json();
-      connection = { state: data.recording ? "recording" : "ok", version: data.version, extension: data.extension };
+      connection = { state: data.recording ? (data.paused ? "paused" : "recording") : "ok", version: data.version, extension: data.extension };
     }
   } catch {
     connection = { state: "offline" };
@@ -59,8 +60,23 @@ function capturable(target) {
   return !/^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/i.test(url);
 }
 
-function elapsed(startedAt) {
-  const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+/** CallDock's pause and resume — for the whole recording, its other sources included. */
+async function bridge(path) {
+  let response;
+  try {
+    response = await fetch(BASE + path, { method: "POST", headers: { Authorization: "Bearer " + token }, signal: AbortSignal.timeout(8000) });
+  } catch {
+    throw new Error("CallDock не отвечает. Проверьте, что программа запущена.");
+  }
+  if (!response.ok) {
+    let message = "";
+    try { message = (await response.json()).error || ""; } catch { /* not JSON */ }
+    throw new Error(message || `CallDock: ошибка ${response.status}`);
+  }
+}
+
+function elapsed(milliseconds) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
   const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds / 60) % 60, rest = seconds % 60;
   const two = n => String(n).padStart(2, "0");
   return hours ? `${hours}:${two(minutes)}:${two(rest)}` : `${two(minutes)}:${two(rest)}`;
@@ -88,7 +104,7 @@ function render() {
   $("cancel-token").hidden = !(editingToken && token);
   $("change-token").hidden = needsToken;
 
-  const connected = connection.state === "ok" || connection.state === "recording";
+  const connected = connection.state === "ok" || connection.state === "recording" || connection.state === "paused";
   const mine = tracks.find(t => t.tabId === tab?.id);
   const start = $("start");
   start.classList.toggle("stop", !!mine);
@@ -105,7 +121,11 @@ function render() {
 
   $("tab-hint").hidden = tracks.length > 0;
   $("recording").hidden = tracks.length === 0;
-  $("recording-title").textContent = `Записываются · ${tracks.length} из ${MAX_TABS}`;
+  $("recording-title").textContent = `Вкладки · ${tracks.length} из ${MAX_TABS}`;
+  const pauseButton = $("pause-all");
+  pauseButton.hidden = !(connection.state === "recording" || connection.state === "paused");
+  pauseButton.textContent = connection.state === "paused" ? "Продолжить" : "Пауза";
+  pauseButton.title = connection.state === "paused" ? "Продолжить запись CallDock" : "Пауза всей записи CallDock — вкладок и других источников";
   renderTracks();
 }
 
@@ -145,6 +165,7 @@ function renderTracks() {
       list.append(row);
     }
     row.classList.toggle("stopping", track.stopping);
+    row.classList.toggle("paused", !!track.paused);
     row.classList.toggle("current", track.tabId === tab?.id);
     row.querySelector(".track-title").textContent = track.title;
     row.querySelector(".track-stop").disabled = track.stopping;
@@ -152,7 +173,7 @@ function renderTracks() {
     const width = level(track.peak);
     bar.style.width = width + "%";
     bar.classList.toggle("hot", width > 95);
-    row.querySelector(".time").textContent = track.stopping ? "сохранение…" : elapsed(track.startedAt);
+    row.querySelector(".time").textContent = track.stopping ? "сохранение…" : track.paused ? `пауза · ${elapsed(track.recorded)}` : elapsed(track.recorded);
   }
 }
 
@@ -210,6 +231,19 @@ $("start").onclick = async () => {
   } catch (error) {
     showMessage(error.message);
   }
+  await refresh();
+};
+
+$("pause-all").onclick = async () => {
+  $("pause-all").disabled = true;
+  try {
+    await bridge(connection.state === "paused" ? "/recording/resume" : "/recording/pause");
+    showMessage("");
+  } catch (error) {
+    showMessage(error.message);
+  }
+  $("pause-all").disabled = false;
+  await checkConnection();
   await refresh();
 };
 

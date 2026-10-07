@@ -62,13 +62,49 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
         });
         // "extension" is the version of the extension files shipped with this CallDock: Chrome keeps running an unpacked
         // extension's old code until it is reloaded, and the popup compares the two to ask for that reload.
-        app.MapGet("/health", () => new { app = AppInfo.Name, version = AppInfo.Version, extension = ExtensionVersion, recording = controller.Current is not null });
+        app.MapGet("/health", () => new
+        {
+            app = AppInfo.Name, version = AppInfo.Version, extension = ExtensionVersion,
+            recording = controller.Current is not null, paused = controller.IsPaused
+        });
+        // «paused» in the answers below is the state of the whole recording: the extension pauses and resumes its tabs by it.
         app.MapPost("/tabs/start", async (TabStart request) =>
         {
             var title = request.Title.Trim();
             if (title.Length is 0 or > 240) throw new ArgumentException("Название вкладки должно содержать 1–240 символов.");
-            var recording = await controller.AddBrowserAsync(title, request.Video, request.WithSources);
-            return Results.Json(new { id = recording.Track.Id });
+            var recording = await controller.AddBrowserAsync(title, request.Video, request.WithSources, request.CanPause);
+            return Results.Json(new { id = recording.Track.Id, paused = controller.IsPaused });
+        });
+        app.MapPost("/recording/pause", async () => { await controller.PauseAsync(); return Results.Json(new { paused = controller.IsPaused }); });
+        app.MapPost("/recording/resume", async () => { await controller.ResumeAsync(); return Results.Json(new { paused = controller.IsPaused }); });
+        // Pause and resume reach the tabs the moment they happen: one JSON line per change, for as long as the extension
+        // listens. The pings repeat the state, so a broken stream only delays a pause by a ping.
+        app.MapGet("/events", async (HttpContext context) =>
+        {
+            context.Response.ContentType = "application/x-ndjson; charset=utf-8";
+            context.Response.Headers.CacheControl = "no-store";
+            using var ended = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, app.Lifetime.ApplicationStopping);
+            using var changed = new SemaphoreSlim(0);
+            void Wake() { try { if (changed.CurrentCount == 0) changed.Release(); } catch (ObjectDisposedException) { } }
+            controller.Changed += Wake;
+            try
+            {
+                bool? sent = null;
+                while (!ended.IsCancellationRequested)
+                {
+                    var paused = controller.IsPaused;
+                    if (paused != sent)
+                    {
+                        await context.Response.WriteAsync(paused ? "{\"paused\":true}\n" : "{\"paused\":false}\n", ended.Token);
+                        await context.Response.Body.FlushAsync(ended.Token);
+                        sent = paused;
+                    }
+                    await changed.WaitAsync(ended.Token);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (IOException) { } // the extension went away
+            finally { controller.Changed -= Wake; }
         });
         app.MapPost("/tabs/{id}/started", async (string id, TabStarted started) =>
         {
@@ -79,13 +115,13 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
         {
             var track = Find(id) ?? throw new InvalidOperationException("Запись вкладки не найдена.");
             await track.AppendAsync(sequence, context.Request.Body, context.RequestAborted);
-            return Results.Json(new { accepted = sequence, stop = track.StopRequested });
+            return Results.Json(new { accepted = sequence, stop = track.StopRequested, paused = controller.IsPaused });
         });
         app.MapPost("/tabs/{id}/ping", (string id, TabMeter meter) =>
         {
             var track = Find(id);
             track?.UpdateMeter(meter.Peak);
-            return Results.Json(new { stop = track is null || track.StopRequested || track.Closed });
+            return Results.Json(new { stop = track is null || track.StopRequested || track.Closed, paused = controller.IsPaused });
         });
         app.MapPost("/tabs/{id}/finish", async (string id, TabFinish finish) =>
         {
@@ -124,9 +160,10 @@ public sealed class BrowserBridge(SessionController controller) : IAsyncDisposab
     /// and in every Chromium browser. Other extensions and web pages are turned away even before the pairing code is checked.</summary>
     public const string ExtensionId = "annnbeocomannganbpakmlleibjjkfie";
     private const string ExtensionOrigin = "chrome-extension://" + ExtensionId;
-    /// <summary>A tab asks to record; <paramref name="Video"/> is false when only its sound is recorded, and
-    /// <paramref name="WithSources"/> asks a new recording to start the sources switched on in CallDock as well.</summary>
-    public sealed record TabStart(string Title, bool Video = true, bool WithSources = false);
+    /// <summary>A tab asks to record; <paramref name="Video"/> is false when only its sound is recorded,
+    /// <paramref name="WithSources"/> asks a new recording to start the sources switched on in CallDock as well, and
+    /// <paramref name="CanPause"/> says the extension pauses its tabs with the recording (1.2 and later).</summary>
+    public sealed record TabStart(string Title, bool Video = true, bool WithSources = false, bool CanPause = false);
     /// <summary>When the tab's recorder really started, by the wall clock (Unix milliseconds).</summary>
     public sealed record TabStarted(long At);
     public sealed record TabMeter(float Peak);

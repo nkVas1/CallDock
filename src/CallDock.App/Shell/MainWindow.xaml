@@ -54,7 +54,7 @@
                 Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Идёт запись — открыть пульт"
                 AutomationProperties.Name="Идёт запись">
           <StackPanel Orientation="Horizontal">
-            <Ellipse Width="9" Height="9" Fill="{StaticResource RecordBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
+            <Ellipse x:Name="RecordingPillDot" Width="9" Height="9" Fill="{StaticResource RecordBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
             <TextBlock x:Name="RecordingPillText" Text="Запись" FontWeight="SemiBold" VerticalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontFamily="Cascadia Mono, Consolas, Segoe UI" />
           </StackPanel>

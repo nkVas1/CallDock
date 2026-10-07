@@ -66,6 +66,8 @@ header img { border-radius: 7px; }
 .pill[data-state="ok"] i { opacity: 1; }
 .pill[data-state="recording"] { color: var(--record); }
 .pill[data-state="recording"] i { opacity: 1; animation: pulse 1.2s ease-in-out infinite; }
+.pill[data-state="paused"] { color: var(--warn); }
+.pill[data-state="paused"] i { opacity: 1; }
 .pill[data-state="offline"], .pill[data-state="bad-token"], .pill[data-state="unpaired"] { color: var(--warn); }
 .pill[data-state="offline"] i, .pill[data-state="bad-token"] i, .pill[data-state="unpaired"] i { opacity: 1; }
 
@@ -136,6 +138,8 @@ input[type="password"]:focus, input[type="text"]:focus { outline: none; border-b
 .section-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 2px 6px; }
 .section-head h2 { margin: 0; }
 .section-head button { padding: 3px 8px; font-size: 12px; }
+.section-head .row { gap: 2px; flex-shrink: 0; }
+.section-head button { white-space: nowrap; }
 
 #tracks { list-style: none; margin: 0 0 10px; padding: 0; }
 #tracks li {
@@ -146,6 +150,7 @@ input[type="password"]:focus, input[type="text"]:focus { outline: none; border-b
 #tracks li.current { border-color: var(--accent); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--record); animation: pulse 1.2s ease-in-out infinite; }
 li.stopping .dot { background: var(--muted); animation: none; }
+li.paused .dot { background: var(--warn); animation: none; }
 .track-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-meta { grid-column: 2; display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .meter { flex: 1; height: 4px; border-radius: 2px; background: var(--meter); overflow: hidden; }

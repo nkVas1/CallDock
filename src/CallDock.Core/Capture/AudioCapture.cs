@@ -84,8 +84,12 @@ public sealed class AudioCapture : IRecording
     /// for seconds, and the sound waits here instead of being lost.</summary>
     private readonly Channel<Packet> packets = Channel.CreateBounded<Packet>(new BoundedChannelOptions(6000) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
     private readonly PcmTimelineWriter writer;
-    private readonly long startedQpc;
-    private readonly Stopwatch clock = Stopwatch.StartNew();
+    /// <summary>The time of the recording: sound taken during its pauses is dropped, the rest is placed by it.</summary>
+    private readonly RecordingClock timeline;
+    /// <summary>Where this track begins on the timeline, in seconds.</summary>
+    private readonly double origin;
+    /// <summary>When the capture stopped (a timestamp): the track is padded with silence up to there.</summary>
+    private long stoppedAt;
     private readonly Task consumer;
     private Task? stopTask;
     private readonly PeakMeter meter = new();
@@ -112,20 +116,23 @@ public sealed class AudioCapture : IRecording
     }
     public long CaptureStartedAt { get; } = Stopwatch.GetTimestamp();
 
-    private AudioCapture(WasapiRecorder recorder, MMDevice? device, RecordingTrack track, string folder)
+    private AudioCapture(WasapiRecorder recorder, MMDevice? device, RecordingTrack track, string folder, RecordingClock timeline)
     {
         this.recorder = recorder;
         this.device = device;
+        this.timeline = timeline;
+        origin = timeline.SecondsAt(CaptureStartedAt);
         Track = track;
         track.Format = Describe(recorder.WaveFormat);
         writer = new PcmTimelineWriter(folder, recorder.WaveFormat);
-        startedQpc = (long)(Stopwatch.GetTimestamp() * (10_000_000.0 / Stopwatch.Frequency));
         recorder.DataAvailable += OnData;
         recorder.RecordingStopped += (_, e) => { if (e.Exception is not null) error = e.Exception.Message; };
         consumer = Task.Run(ConsumeAsync);
     }
 
-    public static async Task<AudioCapture> StartAsync(SourceSpec spec, RecordingTrack track, string folder)
+    /// <summary>Starts capturing a source into a track of a recording. <paramref name="timeline"/> is the recording's clock, so
+    /// the track leaves its pauses out; without one the capture keeps time of its own.</summary>
+    public static async Task<AudioCapture> StartAsync(SourceSpec spec, RecordingTrack track, string folder, RecordingClock? timeline = null)
     {
         return await Task.Run(async () =>
         {
@@ -148,7 +155,7 @@ public sealed class AudioCapture : IRecording
                     if (spec.Kind == SourceKind.SystemAudio) builder.WithLoopbackCapture();
                 }
                 recorder = await builder.BuildAsync();
-                capture = new AudioCapture(recorder, device, track, folder);
+                capture = new AudioCapture(recorder, device, track, folder, timeline ?? RecordingClock.StartNew());
                 recorder.StartRecording();
                 return capture;
             }
@@ -166,12 +173,17 @@ public sealed class AudioCapture : IRecording
         // NAudio also signals empty buffers; they carry no audio and must not reset the meter.
         if (data.IsEmpty) return;
         var format = recorder.WaveFormat;
-        var position = (long)Math.Round((qpcPosition - startedQpc) * (format.SampleRate / 10_000_000.0));
-        if ((flags & AudioClientBufferFlags.TimestampError) != 0 || qpcPosition == 0)
-            position = (long)(clock.Elapsed.TotalSeconds * format.SampleRate) - data.Length / format.BlockAlign;
+        var frames = data.Length / format.BlockAlign;
+        // When the sound was taken: Windows stamps every packet; an unstamped one ends now.
+        var taken = (flags & AudioClientBufferFlags.TimestampError) == 0 && qpcPosition != 0
+            ? RecordingClock.FromHundredNanoseconds(qpcPosition)
+            : Stopwatch.GetTimestamp() - (long)(frames * (double)Stopwatch.Frequency / format.SampleRate);
         meter.Feed(PcmPeak(data, format));
+        // Sound taken during a pause is not recorded; the meter still shows that the source is alive.
+        if (timeline.IsPausedAt(taken)) return;
+        var position = (long)Math.Round((timeline.SecondsAt(taken) - origin) * format.SampleRate);
         if (!packets.Writer.TryWrite(new Packet(data.ToArray(), position)))
-            Interlocked.Add(ref droppedFrames, data.Length / format.BlockAlign);
+            Interlocked.Add(ref droppedFrames, frames);
     }
 
     public static float PcmPeak(ReadOnlySpan<byte> data, WaveFormat format)
@@ -204,8 +216,9 @@ public sealed class AudioCapture : IRecording
             while (!packets.Reader.Completion.IsCompleted)
             {
                 while (packets.Reader.TryRead(out var packet)) writer.WriteAt(packet.Frame, packet.Data);
-                // Loopback can stop producing packets during silence. Leave 500ms for delivery jitter.
-                var elapsed = Math.Max(0, clock.Elapsed.TotalSeconds - 0.5);
+                // Loopback can stop producing packets during silence. Leave 500ms for delivery jitter. The time of the
+                // recording stands still during a pause, and so does the padding.
+                var elapsed = Math.Max(0, timeline.Elapsed - origin - 0.5);
                 writer.PadTo((long)(elapsed * recorder.WaveFormat.SampleRate));
                 // The header is rewritten once a second, not on every pass: each rewrite is a seek on a hard disk. A WAV
                 // cut off by a crash is repaired on the next start anyway.
@@ -214,7 +227,8 @@ public sealed class AudioCapture : IRecording
                 await Task.Delay(100);
             }
             while (packets.Reader.TryRead(out var packet)) writer.WriteAt(packet.Frame, packet.Data);
-            writer.PadTo((long)(clock.Elapsed.TotalSeconds * recorder.WaveFormat.SampleRate));
+            var end = Math.Max(0, timeline.SecondsAt(Interlocked.Read(ref stoppedAt)) - origin);
+            writer.PadTo((long)(end * recorder.WaveFormat.SampleRate));
         }
         catch (Exception e) { error = "Ошибка сохранения аудио: " + e.Message; }
         finally { writer.Dispose(); }
@@ -225,7 +239,7 @@ public sealed class AudioCapture : IRecording
     private async Task StopCoreAsync()
     {
         await recorder.DisposeAsync();
-        clock.Stop();
+        Interlocked.Exchange(ref stoppedAt, Stopwatch.GetTimestamp());
         packets.Writer.TryComplete();
         await consumer;
         device?.Dispose();

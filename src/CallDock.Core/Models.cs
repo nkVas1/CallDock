@@ -15,8 +15,17 @@ public sealed record SourceSpec(SourceKind Kind, string Name, string Target, str
         or SourceKind.Stream or SourceKind.BrowserTab;
 }
 
-public sealed record TranscriptSegment(double Start, double End, string Source, string Text);
+/// <summary>
+/// A phrase of the transcript. <paramref name="Source"/> is the speaker; <paramref name="Track"/> the track it was heard
+/// on (absent in transcripts of versions before 1.3); <paramref name="Original"/> the text as recognized, kept while the
+/// person's correction differs from it.
+/// </summary>
+public sealed record TranscriptSegment(double Start, double End, string Source, string Text,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Track = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Original = null);
 public sealed record Bookmark(double Seconds, string Text);
+/// <summary>A pause of a recording: where it is on the timeline (seconds recorded before it) and how long it lasted.</summary>
+public sealed record RecordingPause(double At, double Seconds);
 
 public sealed class RecordingTrack
 {
@@ -86,7 +95,12 @@ public sealed class CallSession
     public string Folder { get; set; } = "";
     public List<RecordingTrack> Tracks { get; set; } = [];
     public List<TranscriptSegment> Transcript { get; set; } = [];
+    /// <summary>The person changed the transcript: corrected phrases, renamed speakers, removed phrases. A new
+    /// transcription replaces those changes, so it asks first.</summary>
+    public bool TranscriptEdited { get; set; }
     public List<Bookmark> Bookmarks { get; set; } = [];
+    /// <summary>The pauses of the recording, cut out of every track.</summary>
+    public List<RecordingPause> Pauses { get; set; } = [];
 
     [JsonIgnore] public bool IsRecording => Status == SessionStatus.Recording;
     [JsonIgnore] public string DateLabel => StartedAt.ToLocalTime().ToString("dd.MM.yyyy · HH:mm");
@@ -140,7 +154,7 @@ public sealed class AppSettings
     public bool AutoMix { get; set; } = true;
     /// <summary>What to do when another application starts using the microphone: off | ask | auto.</summary>
     public string CallDetection { get; set; } = "ask";
-    /// <summary>Ctrl+Alt+R starts and stops recording, Ctrl+Alt+M sets a bookmark — from any application.</summary>
+    /// <summary>Ctrl+Alt+R starts and stops recording, Ctrl+Alt+P pauses it, Ctrl+Alt+M sets a bookmark — from any application.</summary>
     public bool GlobalHotkeys { get; set; } = true;
     public bool CheckForUpdates { get; set; } = true;
     /// <summary>system | dark | light</summary>
@@ -157,6 +171,16 @@ public sealed class AppSettings
 public static class Display
 {
     public static string Duration(double seconds) => TimeSpan.FromSeconds(Math.Max(0, seconds)).ToString(@"hh\:mm\:ss");
+
+    /// <summary>A length the way people say it: «40 с», «5 мин», «1 ч 12 мин».</summary>
+    public static string Span(double seconds)
+    {
+        var whole = (long)Math.Round(Math.Max(0, seconds));
+        if (whole < 60) return $"{whole} с";
+        var minutes = (whole + 30) / 60;
+        if (minutes < 60) return $"{minutes} мин";
+        return minutes % 60 == 0 ? $"{minutes / 60} ч" : $"{minutes / 60} ч {minutes % 60} мин";
+    }
 
     public static string Size(long bytes) => bytes switch
     {

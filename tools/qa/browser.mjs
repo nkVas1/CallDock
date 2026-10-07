@@ -5,7 +5,8 @@
 //   CALLDOCK_DATA=<CallDock data folder> node tools/qa/browser.mjs
 //
 // Options: QA_TABS (1–4, default 4), QA_SECONDS (default 6), QA_QUALITY (normal | high | audio),
-// QA_WITH_SOURCES=1 (the first tab also starts the sources switched on in CallDock).
+// QA_WITH_SOURCES=1 (the first tab also starts the sources switched on in CallDock),
+// QA_PAUSE=<seconds> (CallDock pauses halfway for that long: every tab must pause at once and the files leave it out).
 // Needs Node 22+ (global WebSocket), Playwright's Chromium (npx playwright install chromium) or CALLDOCK_CHROMIUM,
 // and FFmpeg from tools/Get-MediaTools.ps1 (or CALLDOCK_FFPROBE).
 import { chromium } from "playwright";
@@ -35,6 +36,7 @@ const seconds = Number(process.env.QA_SECONDS || 6);
 const quality = process.env.QA_QUALITY || "normal";
 // QA_WITH_SOURCES=1: the first tab also starts the sources switched on in CallDock (microphone, system sound…).
 const withSources = process.env.QA_WITH_SOURCES === "1";
+const pauseSeconds = Number(process.env.QA_PAUSE || 0);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const results = [];
 
@@ -55,6 +57,23 @@ function lastPacket(file, stream) {
   const out = execFileSync(ffprobe, ["-v", "error", "-select_streams", stream, "-show_entries", "packet=pts_time", "-of", "csv=p=0", file], { encoding: "utf8" });
   const lines = out.trim().split(/\r?\n/).filter(Boolean);
   return lines.length ? Number(lines.at(-1)) : 0;
+}
+
+/** Pause or resume the whole CallDock recording, as the button on its console does. */
+async function bridge(action) {
+  const response = await fetch(`http://127.0.0.1:47831/recording/${action}`, { method: "POST", headers: { Authorization: "Bearer " + token } });
+  assert.ok(response.ok, `${action}: ${response.status} ${await response.text()}`);
+}
+
+/** How long until every tab reports the state (milliseconds). */
+async function until(worker, paused) {
+  const started = Date.now();
+  while (Date.now() - started < 5000) {
+    const status = await worker.evaluate(() => chrome.runtime.sendMessage({ target: "offscreen", type: "status" }));
+    if (status.tracks.length && status.tracks.every(t => t.paused === paused)) return Date.now() - started;
+    await sleep(20);
+  }
+  throw new Error(`the tabs did not ${paused ? "pause" : "resume"} within 5 s`);
 }
 
 /** Playwright does not attach to extension popups, so the popup is driven over the raw DevTools protocol. */
@@ -161,7 +180,21 @@ try {
     } finally { popup.close(); }
     await page.bringToFront();
   }
-  await sleep(seconds * 1000);
+  if (pauseSeconds > 0) {
+    await sleep(seconds * 500);
+    await bridge("pause");
+    const paused = await until(worker, true);
+    const popup = await openPopup(worker);
+    try {
+      await popup.waitFor("document.querySelector('#pause-all') && !document.querySelector('#pause-all').hidden && document.querySelector('#pause-all').textContent === 'Продолжить'", 6000);
+      await popup.screenshot(path.join(qa, "popup-paused.png"));
+    } finally { popup.close(); }
+    await sleep(pauseSeconds * 1000);
+    await bridge("resume");
+    const resumed = await until(worker, false);
+    results.push({ test: "tabs-pause-with-calldock", pausedAfterMs: paused, resumedAfterMs: resumed, passed: true });
+    await sleep(seconds * 500);
+  } else await sleep(seconds * 1000);
   const status = await worker.evaluate(() => chrome.runtime.sendMessage({ target: "offscreen", type: "status" }));
   assert.equal(status.tracks.length, tabCount);
   assert.ok(status.tracks.every(t => t.peak > 0.001), JSON.stringify(status));
@@ -181,8 +214,10 @@ try {
     const file = await find(archive, f => f.includes(track.id) && f.endsWith(".webm"));
     assert.ok(file, `no file for track ${track.id}`);
     const audio = lastPacket(file, "a:0"), video = lastPacket(file, "v:0");
-    files.push({ title: track.title, audio, video });
+    files.push({ title: track.title, audio, video, recorded: track.recorded / 1000 });
     assert.ok(audio > seconds - 1, `sound too short in ${file}: ${audio} s`);
+    // The pause is left out: the file is as long as the tab recorded by its own count, pauses not counted.
+    if (pauseSeconds > 0) assert.ok(Math.abs(audio - track.recorded / 1000) < 2, `the pause was recorded in ${file}: ${audio} s, recorded ${track.recorded} ms`);
     if (quality === "audio") assert.equal(video, 0, `picture recorded in audio-only mode: ${file}`);
     else assert.ok(audio >= video - 1, `sound ends ${(video - audio).toFixed(1)} s before the picture in ${file}`);
   }

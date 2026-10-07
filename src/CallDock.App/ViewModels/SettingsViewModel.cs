@@ -82,6 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string Version => AppInfo.Version;
     public string HotkeyToggle => HotkeyService.ToggleGesture;
     public string HotkeyBookmark => HotkeyService.BookmarkGesture;
+    public string HotkeyPause => HotkeyService.PauseGesture;
     public string BridgeStatus => host.BridgeError ?? (host.Bridge.IsRunning ? "CallDock принимает вкладки Chrome (порт 47831, только этот компьютер)." : "Подключение Chrome не запущено.");
     public bool ApplicationAudioSupported => Capabilities.ApplicationAudio;
 

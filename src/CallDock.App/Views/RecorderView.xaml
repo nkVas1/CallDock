@@ -18,8 +18,10 @@
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <ui:SymbolIcon Symbol="Pause24" Filled="True" FontSize="20" Foreground="{StaticResource WarningBrush}" Margin="0,0,14,10"
+                           VerticalAlignment="Center" Visibility="{Binding IsPaused, Converter={StaticResource Visible}}" ToolTip="Пауза" />
             <Ellipse Width="14" Height="14" Fill="{StaticResource RecordBrush}" Margin="0,0,16,10" VerticalAlignment="Center"
-                     Visibility="{Binding IsRecording, Converter={StaticResource Visible}}">
+                     Visibility="{Binding ShowRecordingDot, Converter={StaticResource Visible}}">
               <Ellipse.Triggers>
                 <EventTrigger RoutedEvent="Loaded">
                   <BeginStoryboard>
@@ -32,13 +34,45 @@
             </Ellipse>
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
               <TextBlock Text="{Binding Elapsed}" FontSize="42" FontWeight="Light" FontFamily="Cascadia Mono, Consolas, Segoe UI"
-                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" AutomationProperties.Name="Длительность записи" />
+                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" AutomationProperties.Name="Длительность записи">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                      <!-- A pause: the time of the recording stands still, and looks it. -->
+                      <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                        <Setter Property="Opacity" Value="0.55" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
               <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
               <ui:Button Content="Метка" Command="{Binding AddBookmarkCommand}" Margin="0,0,10,0" Height="44" Padding="16,0"
                          Visibility="{Binding IsRecording, Converter={StaticResource Visible}}" ToolTip="Отметить важный момент · Ctrl+Alt+M">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="BookmarkAdd24" /></ui:Button.Icon>
+              </ui:Button>
+              <ui:Button Command="{Binding TogglePauseCommand}" Margin="0,0,10,0" Height="44" MinWidth="136" Padding="16,0"
+                         Visibility="{Binding IsRecording, Converter={StaticResource Visible}}" AutomationProperties.AutomationId="TogglePause">
+                <ui:Button.Style>
+                  <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                    <Setter Property="Content" Value="Пауза" />
+                    <Setter Property="Icon"><Setter.Value><ui:SymbolIcon Symbol="Pause24" /></Setter.Value></Setter>
+                    <Setter Property="ToolTip" Value="Приостановить запись · Ctrl+Alt+P. Пауза не попадёт ни в одну дорожку." />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                        <Setter Property="Content" Value="Продолжить" />
+                        <Setter Property="Appearance" Value="Primary" />
+                        <Setter Property="Icon"><Setter.Value><ui:SymbolIcon Symbol="Play24" Filled="True" /></Setter.Value></Setter>
+                        <Setter Property="ToolTip" Value="Продолжить запись с того же места · Ctrl+Alt+P" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                        <Setter Property="IsEnabled" Value="False" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </ui:Button.Style>
               </ui:Button>
               <ui:Button x:Name="RecordButton" Command="{Binding ToggleRecordingCommand}" Height="44" MinWidth="190" Padding="20,0"
                          FontSize="15" FontWeight="SemiBold" ToolTip="Начать или завершить запись · Ctrl+Alt+R"

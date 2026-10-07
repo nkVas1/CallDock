@@ -65,6 +65,12 @@ public sealed class VideoCapture : IRecording
     }
 
     public async Task WaitStartedAsync() => await started.Task.WaitAsync(TimeSpan.FromSeconds(15));
+
+    /// <summary>The recording pauses: ScreenRecorderLib leaves the paused time out of the file (checked: 4 s + a 4 s pause
+    /// + 4 s give an 8 s video, a stop during a pause finishes the file).</summary>
+    public void Pause() { if (stopTask is null && started.Task.IsCompletedSuccessfully) recorder.Pause(); }
+
+    public void Resume() { if (stopTask is null && started.Task.IsCompletedSuccessfully) recorder.Resume(); }
     public Task StopAsync() => stopTask ??= StopCoreAsync();
     private async Task StopCoreAsync()
     {

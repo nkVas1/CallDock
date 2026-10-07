@@ -168,7 +168,7 @@
             <StackPanel>
               <TextBlock Text="Горячие клавиши в любой программе" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
               <TextBlock Style="{StaticResource Caption}">
-                <Run Text="{Binding HotkeyToggle, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — начать или завершить запись,  " /><Run Text="{Binding HotkeyBookmark, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — поставить метку." />
+                <Run Text="{Binding HotkeyToggle, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — начать или завершить запись,  " /><Run Text="{Binding HotkeyPause, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — пауза и продолжение,  " /><Run Text="{Binding HotkeyBookmark, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" — поставить метку." />
               </TextBlock>
             </StackPanel>
           </DockPanel>

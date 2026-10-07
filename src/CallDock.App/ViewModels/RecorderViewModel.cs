@@ -7,7 +7,7 @@ using System.Windows.Threading;
 
 namespace CallDock.App.ViewModels;
 
-/// <summary>The recording console: which sources to record, live levels, start, stop and bookmarks.</summary>
+/// <summary>The recording console: which sources to record, live levels, start, pause, stop and bookmarks.</summary>
 public sealed partial class RecorderViewModel : ObservableObject
 {
     private readonly AppHost host;
@@ -43,8 +43,12 @@ public sealed partial class RecorderViewModel : ObservableObject
     [ObservableProperty] public partial string BookmarkText { get; set; } = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanPreview), nameof(RecordButtonText), nameof(TitlePlaceholder))]
+    [NotifyPropertyChangedFor(nameof(CanPreview), nameof(RecordButtonText), nameof(TitlePlaceholder), nameof(ShowRecordingDot))]
     public partial bool IsRecording { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowRecordingDot))]
+    public partial bool IsPaused { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPreview), nameof(CanAddSources))]
@@ -58,6 +62,8 @@ public sealed partial class RecorderViewModel : ObservableObject
     /// <summary>Sources can be added at any time: during a recording a new one joins it right away.</summary>
     public bool CanAddSources => !IsBusy;
     public bool CanPreview => !IsRecording && !IsBusy;
+    /// <summary>The pulsing red dot: recording now. During a pause a pause sign stands in its place.</summary>
+    public bool ShowRecordingDot => IsRecording && !IsPaused;
     public string RecordButtonText => IsRecording ? "Завершить" : "Начать запись";
     public string TitlePlaceholder => $"Звонок {DateTime.Now:dd.MM HH:mm}";
 
@@ -231,6 +237,28 @@ public sealed partial class RecorderViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
+    /// <summary>Pause and go on: the button, Ctrl+Alt+P and the tray menu. A pause is cut out of every track.</summary>
+    [RelayCommand]
+    public async Task TogglePauseAsync()
+    {
+        var recorder = host.Recorder;
+        if (IsBusy || !recorder.IsRecording || recorder.IsStopping) return;
+        try
+        {
+            if (recorder.IsPaused)
+            {
+                await recorder.ResumeAsync();
+                host.Notifier.Info("Запись продолжается", $"Пауза в запись не попала: дорожки продолжаются с {Display.Duration(recorder.Elapsed)}.");
+            }
+            else
+            {
+                await recorder.PauseAsync();
+                host.Notifier.Info("Пауза", "Ничего не записывается. Продолжить — «Продолжить» на пульте, в трее или Ctrl+Alt+P.");
+            }
+        }
+        catch (Exception e) { host.Notifier.Error(e, "Пауза не включилась"); }
+    }
+
     [RelayCommand]
     public async Task AddBookmarkAsync()
     {
@@ -267,6 +295,7 @@ public sealed partial class RecorderViewModel : ObservableObject
     private void OnRecorderChanged()
     {
         IsRecording = host.Recorder.IsRecording;
+        IsPaused = host.Recorder.IsPaused;
         if (IsRecording && host.Recorder.Current is { } session && string.IsNullOrWhiteSpace(Title))
             Title = session.Title;
         // Chrome tabs appear as cards while they record and leave when the session ends.
@@ -281,6 +310,7 @@ public sealed partial class RecorderViewModel : ObservableObject
             Status = "Готово к следующей встрече";
             HasSourceError = false;
         }
+        else UpdateStatus();
         UpdateEditable();
     }
 
@@ -293,10 +323,12 @@ public sealed partial class RecorderViewModel : ObservableObject
     private async Task TickAsync()
     {
         var recorder = host.Recorder;
+        var paused = recorder.IsPaused;
         foreach (var item in Sources)
         {
             var live = recorder.Find(item.Spec);
             if (live is BrowserRecording { Closed: true } tab) item.Update(0, tab.Error, false, $"Вкладка закрыта · {Display.Size(tab.BytesWritten)}");
+            else if (live is not null && paused) item.Update(0, live.Error, false, "Пауза — не записывается");
             else if (live is not null)
             {
                 if (live.Track.HasAudio) item.Update(live.Peak, live.Error, true);
@@ -313,12 +345,25 @@ public sealed partial class RecorderViewModel : ObservableObject
         }
         UpdateEditable();
         Elapsed = Display.Duration(recorder.Elapsed);
+        if (paused) UpdateStatus(); // the length of the pause goes on
         if (++ticks % 30 != 0 || recorder.IsStopping) return;
         try { await recorder.CheckpointAsync(); }
         catch (Exception e)
         {
             host.Notifier.Error(e, "Запись остановлена");
             await StopAsync();
+            return;
+        }
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
+    {
+        var recorder = host.Recorder;
+        if (recorder.IsStopping) return;
+        if (recorder.IsPaused)
+        {
+            Status = $"Пауза длится {Display.Duration(recorder.PauseSeconds)} · ничего не записывается";
             return;
         }
         var captures = recorder.Recordings;

@@ -1,4 +1,4 @@
-"""Draws the CallDock icons: the app icon, the tray icons (idle and recording) and the logo PNGs.
+"""Draws the CallDock icons: the app icon, the tray icons (idle, recording, paused) and the logo PNGs.
 
 Run with Python 3 and Pillow:  python tools/icons/make_icons.py
 Everything is drawn at 1024 px and downscaled, so small sizes stay crisp.
@@ -16,6 +16,8 @@ BASE = 1024
 TEAL_TOP = (36, 168, 140)
 TEAL_BOTTOM = (13, 84, 78)
 RED = (232, 72, 72)
+AMBER = (232, 181, 58)
+DARK = (52, 38, 6)
 WHITE = (255, 255, 255)
 # Waveform bars: (relative height) — a voice standing on the dock line.
 BARS = [0.30, 0.58, 0.86, 0.58, 0.40]
@@ -69,6 +71,20 @@ def with_record_dot(img: Image.Image) -> Image.Image:
     return out
 
 
+def with_pause_badge(img: Image.Image) -> Image.Image:
+    """The recording dot's place taken by an amber badge with two bars: the recording is paused."""
+    out = img.copy()
+    draw = ImageDraw.Draw(out)
+    r = BASE * 0.25
+    cx, cy = BASE * 0.76, BASE * 0.24
+    draw.ellipse((cx - r - BASE * 0.04, cy - r - BASE * 0.04, cx + r + BASE * 0.04, cy + r + BASE * 0.04), fill=WHITE)
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=AMBER)
+    bar, gap, height = r * 0.30, r * 0.26, r * 1.05
+    for x in (cx - gap / 2 - bar, cx + gap / 2):
+        draw.rounded_rectangle((x, cy - height / 2, x + bar, cy + height / 2), radius=int(bar / 3), fill=DARK)
+    return out
+
+
 def scaled(img: Image.Image, size: int) -> Image.Image:
     return img.resize((size, size), Image.Resampling.LANCZOS)
 
@@ -86,6 +102,7 @@ def main() -> None:
     save_ico(ASSETS / "calldock.ico", full, small, [16, 20, 24, 32, 40, 48, 64, 128, 256])
     save_ico(ASSETS / "tray-idle.ico", full, small, [16, 20, 24, 32, 48])
     save_ico(ASSETS / "tray-recording.ico", with_record_dot(full), with_record_dot(small), [16, 20, 24, 32, 48])
+    save_ico(ASSETS / "tray-paused.ico", with_pause_badge(full), with_pause_badge(small), [16, 20, 24, 32, 48])
     scaled(full, 64).save(ASSETS / "logo-64.png")
     scaled(full, 256).save(ASSETS / "logo-256.png")
     scaled(full, 256).save(DOCS / "logo.png")

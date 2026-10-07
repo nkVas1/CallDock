@@ -14,14 +14,17 @@ public sealed class BrowserRecording : IRecording
     private string? error;
     public bool StopRequested { get; private set; }
     public bool Closed { get; private set; }
+    /// <summary>The extension that records the tab pauses it with the recording (extension 1.2 and later).</summary>
+    public bool CanPause { get; }
     public RecordingTrack Track { get; }
     public float Peak => DateTime.UtcNow - lastSeen < TimeSpan.FromSeconds(2) ? peak : 0;
     public long BytesWritten => Interlocked.Read(ref bytes);
     public string? Error => error ?? (!Closed && DateTime.UtcNow - lastSeen > TimeSpan.FromSeconds(12) ? "Нет связи с вкладкой Chrome более 12 секунд." : null);
 
-    public BrowserRecording(RecordingTrack track, string folder, bool video = true)
+    public BrowserRecording(RecordingTrack track, string folder, bool video = true, bool canPause = false)
     {
         Track = track;
+        CanPause = canPause;
         track.HasVideo = video;
         track.Format = video ? "Вкладка · VP8 + Opus · WebM" : "Вкладка · только звук · Opus · WebM";
         Directory.CreateDirectory(folder);

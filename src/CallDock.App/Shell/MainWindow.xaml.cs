@@ -57,8 +57,8 @@ public partial class MainWindow : FluentWindow
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         tray = new TrayService(ShowFromTray, () => _ = recorder.ToggleRecordingCommand.ExecuteAsync(null),
-            () => _ = recorder.AddBookmarkCommand.ExecuteAsync(null), () => _ = QuitAsync(),
-            () => _ = RestartAsync(toggleCompatibleDrawing: true), host.Settings.SoftwareRendering);
+            () => _ = recorder.TogglePauseCommand.ExecuteAsync(null), () => _ = recorder.AddBookmarkCommand.ExecuteAsync(null),
+            () => _ = QuitAsync(), () => _ = RestartAsync(toggleCompatibleDrawing: true), host.Settings.SoftwareRendering);
         host.Notifier.Attach(Snackbar, () => IsVisible && WindowState != WindowState.Minimized, tray);
         ApplyTheme();
         ApplyHotkeys();
@@ -112,12 +112,19 @@ public partial class MainWindow : FluentWindow
     private void UpdateRecordingIndicators()
     {
         var recording = host.Recorder.IsRecording;
+        var paused = recording && host.Recorder.IsPaused;
         var elapsed = Display.Duration(host.Recorder.Elapsed);
         RecordingPill.Visibility = recording ? Visibility.Visible : Visibility.Collapsed;
         NavRecordDot.Visibility = RecordingPill.Visibility;
-        RecordingPillText.Text = host.Recorder.IsStopping ? "Сохраняю…" : elapsed;
-        tray?.SetRecording(recording, elapsed);
-        Title = recording ? $"● {elapsed} — CallDock" : "CallDock";
+        // A pause is amber everywhere: the pill, the dot on the rail, the tray icon.
+        var dot = (System.Windows.Media.Brush)FindResource(paused ? "WarningBrush" : "RecordBrush");
+        RecordingPillDot.Fill = dot;
+        NavRecordDot.Fill = dot;
+        RecordingPillText.Text = host.Recorder.IsStopping ? "Сохраняю…" : paused ? $"Пауза · {elapsed}" : elapsed;
+        RecordingPill.ToolTip = paused ? "Запись на паузе — открыть пульт" : "Идёт запись — открыть пульт";
+        System.Windows.Automation.AutomationProperties.SetName(RecordingPill, paused ? "Запись на паузе" : "Идёт запись");
+        tray?.SetRecording(recording, elapsed, paused);
+        Title = paused ? $"❚❚ {elapsed} — CallDock" : recording ? $"● {elapsed} — CallDock" : "CallDock";
         if (recording && !pill.IsEnabled) pill.Start();
         if (!recording) pill.Stop();
     }
@@ -146,6 +153,7 @@ public partial class MainWindow : FluentWindow
     {
         hotkeys ??= new HotkeyService(
             () => Dispatcher.BeginInvoke(() => _ = recorder.ToggleRecordingCommand.ExecuteAsync(null)),
+            () => Dispatcher.BeginInvoke(() => _ = recorder.TogglePauseCommand.ExecuteAsync(null)),
             () => Dispatcher.BeginInvoke(() => _ = recorder.AddBookmarkCommand.ExecuteAsync(null)));
         hotkeys.Disable();
         if (host.Settings.GlobalHotkeys) hotkeys.Enable(new WindowInteropHelper(this).EnsureHandle());
