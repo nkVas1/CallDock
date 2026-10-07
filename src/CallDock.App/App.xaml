@@ -126,7 +126,7 @@
           </Setter.Value>
         </Setter>
       </Style>
-      <!-- A transcript phrase: no selection, a soft fill and an accent bar while it is being played. -->
+      <!-- A transcript phrase: a soft fill when selected, and an accent bar while it is being played. -->
       <Style x:Key="TranscriptRow" TargetType="ListBoxItem">
         <Setter Property="Padding" Value="8,6" />
         <Setter Property="Margin" Value="0,1" />
@@ -145,6 +145,9 @@
               <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="Fill" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                  <Setter TargetName="Fill" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
                 </Trigger>
                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                   <Setter TargetName="Fill" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />

@@ -34,8 +34,9 @@ public partial class PlayerBar : UserControl
 
     public AppHost? Host { get; set; }
     public string? SessionId { get; private set; }
-    /// <summary>Whose phrases are being played (null: everyone's, a mix) and the session time now.</summary>
-    public event Action<string?, double>? PositionChanged;
+    /// <summary>What is being played — a track, whose phrases the transcript follows, or the mix with everyone's — and the
+    /// session time now.</summary>
+    public event Action<PlaybackSource?, double>? PositionChanged;
 
     public async Task LoadAsync(CallSession session, PlaybackSource target, double sessionSeconds)
     {
@@ -177,7 +178,7 @@ public partial class PlayerBar : UserControl
         if (index < 0 || !opened) return;
         var now = Now;
         Show(now);
-        if (source is not null) PositionChanged?.Invoke(source.Speaker, now);
+        if (source is not null) PositionChanged?.Invoke(source, now);
     }
 
     private void TogglePlay(object sender, RoutedEventArgs e) { if (playing) Pause(); else Play(); }

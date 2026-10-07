@@ -32,6 +32,27 @@
         </DataTrigger>
       </Style.Triggers>
     </Style>
+
+    <!-- The speaker over a phrase: reads as a label, opens what can be done with the speaker. -->
+    <Style x:Key="SpeakerLink" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource SoftFocus}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="Transparent" Padding="0,1">
+              <TextBlock x:Name="Label" Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" FontSize="11" FontWeight="SemiBold"
+                         Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </UserControl.Resources>
 
   <Grid>
@@ -178,21 +199,51 @@
           <Grid Margin="0,10,0,0">
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
               <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <DockPanel Visibility="{Binding HasTranscript, Converter={StaticResource Visible}}" Margin="0,0,0,8">
+            <DockPanel Visibility="{Binding ShowTranscriptTools, Converter={StaticResource Visible}}" Margin="0,0,0,8">
               <ui:Button DockPanel.Dock="Right" Content="Копировать текст" Command="{Binding CopyTranscriptCommand}" Margin="8,0,0,0">
                 <ui:Button.Icon><ui:SymbolIcon Symbol="Copy24" /></ui:Button.Icon>
               </ui:Button>
-              <ui:TextBox Text="{Binding TranscriptFilter, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Найти в разговоре" ClearButtonEnabled="True">
+              <ui:Button DockPanel.Dock="Right" Content="Отменить" Command="{Binding UndoCommand}" Margin="8,0,0,0" ToolTip="{Binding UndoHint}"
+                         Visibility="{Binding CanUndo, Converter={StaticResource Visible}}" AutomationProperties.Name="{Binding UndoHint}">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowUndo24" /></ui:Button.Icon>
+              </ui:Button>
+              <ui:TextBox Text="{Binding TranscriptFilter, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Найти в разговоре" ClearButtonEnabled="True"
+                          AutomationProperties.Name="Найти в разговоре">
                 <ui:TextBox.Icon><ui:SymbolIcon Symbol="Search24" /></ui:TextBox.Icon>
               </ui:TextBox>
             </DockPanel>
-            <TextBlock Grid.Row="1" Text="{Binding TranscriptHint}" Style="{StaticResource Caption}" FontSize="13" Margin="2,6,0,0"
+            <StackPanel Grid.Row="1">
+              <!-- A correction of a word that is in other phrases too: make it everywhere at once. -->
+              <Border Style="{StaticResource Surface}" Padding="14,8" Margin="0,0,0,8"
+                      Visibility="{Binding Suggestion, Converter={StaticResource VisibleIfSet}}">
+                <DockPanel>
+                  <ui:Button DockPanel.Dock="Right" Appearance="Transparent" Padding="6" Margin="4,0,0,0" VerticalAlignment="Center"
+                             Command="{Binding DismissSuggestionCommand}" ToolTip="Не заменять" AutomationProperties.Name="Не заменять">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                  </ui:Button>
+                  <ui:Button DockPanel.Dock="Right" Content="Заменить везде" Appearance="Primary" Margin="12,0,0,0" VerticalAlignment="Center"
+                             Command="{Binding ReplaceEverywhereCommand}" />
+                  <ui:SymbolIcon DockPanel.Dock="Left" Symbol="TextEditStyle24" FontSize="18" Margin="0,0,10,0" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                  <TextBlock Text="{Binding Suggestion}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </DockPanel>
+              </Border>
+              <TextBlock Text="Двойной щелчок по фразе — исправить её, щелчок по имени — переименовать говорящего; остальное — правой кнопкой."
+                         Style="{StaticResource Caption}" Margin="2,0,0,6" Visibility="{Binding ShowEditHint, Converter={StaticResource Visible}}" />
+            </StackPanel>
+            <TextBlock Grid.Row="2" Text="{Binding TranscriptHint}" Style="{StaticResource Caption}" FontSize="13" Margin="2,6,0,0"
                        Visibility="{Binding HasTranscript, Converter={StaticResource Hidden}}" />
-            <ListBox Grid.Row="1" x:Name="TranscriptList" ItemsSource="{Binding TranscriptRows}" BorderThickness="0" Background="Transparent"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.ScrollUnit="Pixel"
-                     Visibility="{Binding HasTranscript, Converter={StaticResource Visible}}" AutomationProperties.Name="Расшифровка">
+            <ListBox Grid.Row="2" x:Name="TranscriptList" ItemsSource="{Binding TranscriptRows}" BorderThickness="0" Background="Transparent"
+                     SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.ScrollUnit="Pixel"
+                     Visibility="{Binding HasTranscript, Converter={StaticResource Visible}}" AutomationProperties.Name="Расшифровка"
+                     PreviewKeyDown="TranscriptKeyDown" ContextMenuOpening="TranscriptMenuOpening">
+              <ListBox.ContextMenu>
+                <!-- Filled when it opens: what it offers depends on the phrase and the selection. -->
+                <ContextMenu />
+              </ListBox.ContextMenu>
               <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource TranscriptRow}">
                   <Setter Property="AutomationProperties.Name" Value="{Binding Text}" />
@@ -200,22 +251,64 @@
               </ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid>
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <ui:Button Appearance="Transparent" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Слушать с этого места"
-                               AutomationProperties.Name="{Binding Time, StringFormat='Слушать с {0}'}"
-                               Command="{Binding DataContext.PlayRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}">
-                      <TextBlock Text="{Binding Time}" FontFamily="Cascadia Mono, Consolas" FontSize="12" />
-                    </ui:Button>
-                    <StackPanel Grid.Column="1">
-                      <TextBlock Text="{Binding Source}" Style="{StaticResource Eyebrow}" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,2,0,0" FontSize="14" LineHeight="21"
-                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    </StackPanel>
-                  </Grid>
+                  <StackPanel>
+                    <!-- The recording was paused here: the conversation may jump. -->
+                    <TextBlock Text="{Binding PauseBefore, StringFormat='— {0} —'}" Style="{StaticResource Eyebrow}" HorizontalAlignment="Center"
+                               Margin="0,0,0,8" Visibility="{Binding PauseBefore, Converter={StaticResource VisibleIfSet}}" />
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <ui:Button Appearance="Transparent" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Слушать с этого места"
+                                 AutomationProperties.Name="{Binding Time, StringFormat='Слушать с {0}'}"
+                                 Command="{Binding DataContext.PlayRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}">
+                        <TextBlock Text="{Binding Time}" FontFamily="Cascadia Mono, Consolas" FontSize="12" />
+                      </ui:Button>
+                      <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                          <Button Style="{StaticResource SpeakerLink}" Content="{Binding Source}" Click="OpenSpeakerMenu"
+                                  ToolTip="Переименовать говорящего или отдать фразу другому"
+                                  AutomationProperties.Name="{Binding Source, StringFormat='Говорящий {0}: переименовать или сменить'}" />
+                          <TextBlock Text="· исправлено" Style="{StaticResource Eyebrow}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                     Visibility="{Binding IsEdited, Converter={StaticResource Visible}}" ToolTip="{Binding Recognized}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,2,0,0" FontSize="14" LineHeight="21"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" MouseLeftButtonDown="PhraseMouseDown"
+                                   Visibility="{Binding IsEditing, Converter={StaticResource Hidden}}" />
+                        <TextBox Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" AcceptsReturn="False" MaxLength="2000"
+                                 Margin="0,4,0,0" FontSize="14" Language="ru-RU" SpellCheck.IsEnabled="True"
+                                 Visibility="{Binding IsEditing, Converter={StaticResource Visible}}" AutomationProperties.Name="Текст фразы"
+                                 PreviewKeyDown="EditKeyDown" LostKeyboardFocus="EditLostFocus" IsVisibleChanged="EditShown" />
+                        <TextBlock Text="Enter — сохранить · Esc — отменить" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                                   Visibility="{Binding IsEditing, Converter={StaticResource Visible}}" />
+                      </StackPanel>
+                      <ui:Button Grid.Column="2" Appearance="Transparent" Padding="6" Margin="8,0,0,0" VerticalAlignment="Top" Click="EditClicked"
+                                 ToolTip="Исправить текст · F2" AutomationProperties.Name="Исправить текст фразы">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                        <ui:Button.Style>
+                          <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                            <Setter Property="Visibility" Value="Hidden" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                <Setter Property="Visibility" Value="Hidden" />
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding DataContext.CanEditTranscript, RelativeSource={RelativeSource AncestorType=ListBox}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </ui:Button.Style>
+                      </ui:Button>
+                    </Grid>
+                  </StackPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>

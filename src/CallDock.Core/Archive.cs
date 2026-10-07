@@ -62,6 +62,7 @@ public sealed partial class Archive
         cmd.Parameters.AddWithValue("$folder", session.Folder);
         cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(session, AppPaths.Json));
         cmd.Parameters.AddWithValue("$text", string.Join('\n', new[] { session.Title, session.Project, session.Tags, session.Notes }
+            .Concat(session.Transcript.Select(x => x.Source).Concat(session.Tracks.Select(x => x.Name)).Distinct())
             .Concat(session.Transcript.Select(x => x.Text)).Concat(session.Bookmarks.Select(x => x.Text))));
         cmd.ExecuteNonQuery();
         tx.Commit();

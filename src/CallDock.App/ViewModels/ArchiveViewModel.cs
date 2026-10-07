@@ -134,9 +134,9 @@ public sealed partial class ArchiveViewModel : ObservableObject
         || shown.Mix?.CreatedAt != stored.Mix?.CreatedAt || shown.MixError != stored.MixError
         || Math.Abs(shown.DurationSeconds - stored.DurationSeconds) > 1;
 
-    /// <summary>Fields typed in the detail but not saved yet must not be overwritten by a refresh.</summary>
+    /// <summary>Fields typed in the detail but not saved yet, and a phrase being corrected, must not be overwritten by a refresh.</summary>
     private static bool IsEditing(SessionDetailViewModel detail, CallSession stored) =>
-        detail.Title != stored.Title || detail.Project != stored.Project || detail.Tags != stored.Tags || detail.Notes != stored.Notes;
+        detail.IsEditingText || detail.Title != stored.Title || detail.Project != stored.Project || detail.Tags != stored.Tags || detail.Notes != stored.Notes;
 
     public void Notify(string title, string message) => host.Notifier.Info(title, message);
 

@@ -270,7 +270,13 @@ public sealed class ProcessingQueue(Archive archive, AppSettings settings, Func<
             if (process.ExitCode != 0)
                 throw new InvalidOperationException(string.IsNullOrEmpty(error) ? $"Модуль распознавания завершился с кодом {process.ExitCode}." : error[^Math.Min(error.Length, 600)..]);
             var transcript = JsonSerializer.Deserialize<List<TranscriptSegment>>(await File.ReadAllTextAsync(resultPath, ct), AppPaths.Json) ?? [];
-            archive.Update(id, s => { s.Transcript = transcript; s.TranscriptionStatus = TranscriptionStatus.Done; s.TranscriptionError = null; });
+            archive.Update(id, s =>
+            {
+                s.Transcript = transcript;
+                s.TranscriptEdited = false;
+                s.TranscriptionStatus = TranscriptionStatus.Done;
+                s.TranscriptionError = null;
+            });
             Log.Info($"Transcribed {id}: {transcript.Count} segments");
         }
         catch (Exception e) when (e is not OperationCanceledException)

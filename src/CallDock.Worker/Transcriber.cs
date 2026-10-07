@@ -75,7 +75,7 @@ public static partial class Transcriber
                             var text = segment.Text.Trim();
                             if (text.Length == 0 || IsHallucination(text)) continue;
                             var start = offset + slice + segment.Start.TotalSeconds;
-                            result.Add(new(start, offset + slice + segment.End.TotalSeconds, track.Name, text));
+                            result.Add(new(start, offset + slice + segment.End.TotalSeconds, track.Name, text, track.Id));
                             sliceLabel = $"{track.Name} · {Display.Duration(start)}";
                         }
                     }
